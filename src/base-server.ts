@@ -285,7 +285,7 @@ export class WebSocketBaseServer
         return _.stableStringify(target);
     }
 
-    private _notify(socket: SocketIO.Socket, globalTarget: WebSocketTarget, value: any)
+    private _notify(socket: MySocket, globalTarget: WebSocketTarget, value: any)
     {
         socket.emit('update', {
             target: globalTarget,
@@ -320,9 +320,23 @@ export class WebSocketBaseServer
 
 }
 
-export class MySocket extends SocketIO.Socket {
-    public customData? : MySocketCustomData;
+export interface MySocket extends NodeJS.EventEmitter {
+    id: string;
+    
+    customData? : MySocketCustomData;
+
+    emit(ev: string, ...args: any[]): boolean;
 }
+
+
+// export class MySocket extends SocketIO.Socket {
+//     public customData? : MySocketCustomData;
+
+//     constructor(nsp: SocketIO.Namespace, client: SocketIO.Client, auth: object)
+//     {
+//         super(nsp, client, auth);
+//     }
+// }
 
 export interface MySocketCustomData
 {
