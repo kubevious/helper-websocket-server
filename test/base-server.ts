@@ -2,7 +2,6 @@ import 'mocha';
 import should = require('should');
 import { Promise } from 'the-promise';
 
-import { setupLogger, LoggerOptions, LogLevel } from 'the-logger';
 
 import { WebSocketBaseServer } from '../src';
 
@@ -10,12 +9,12 @@ import express from 'express';
 import { Server } from 'http'
 import * as path from "path";
 
+import { logger } from './logger';
+
 const RUN_TEST_DEBUG = (process.env.RUN_TEST_DEBUG == 'true');
 const PAUSE_TIMEOUT = RUN_TEST_DEBUG ? 100 * 1000 : 0;
 const TEST_TIMEOUT = PAUSE_TIMEOUT + 2000;
 
-const loggerOptions = new LoggerOptions().enableFile(false).pretty(true).subLevel('test', LogLevel.debug);
-const logger = setupLogger('test', loggerOptions);
 
 const PORT = process.env.PORT || 3333;
 let globalApp = express();
