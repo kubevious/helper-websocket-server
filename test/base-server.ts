@@ -10,6 +10,10 @@ import express from 'express';
 import { Server } from 'http'
 import * as path from "path";
 
+const RUN_TEST_DEBUG = (process.env.RUN_TEST_DEBUG == 'true');
+const PAUSE_TIMEOUT = RUN_TEST_DEBUG ? 100 * 1000 : 0;
+const TEST_TIMEOUT = PAUSE_TIMEOUT + 2000;
+
 const loggerOptions = new LoggerOptions().enableFile(false).pretty(true).subLevel('test', LogLevel.debug);
 const logger = setupLogger('test', loggerOptions);
 
@@ -44,13 +48,13 @@ describe('base-server', () => {
 
     it('case-01', () => {
         logger.info("Test Init");
-        const wsServer = new WebSocketBaseServer(logger, globalHttp!, '/socket');//, '/socket.io');
+        const wsServer = new WebSocketBaseServer(logger, globalHttp!, '/socket');
         return Promise.resolve()
             .then(() => wsServer.run())
-            .then(() => Promise.timeout(1000))
+            .then(() => Promise.timeout(PAUSE_TIMEOUT))
             .then(() => {
             })
     })
-    .timeout(100000);
+    .timeout(TEST_TIMEOUT);
 
 });

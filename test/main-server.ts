@@ -2,17 +2,17 @@ import 'mocha';
 import should = require('should');
 import { Promise } from 'the-promise';
 
-import { setupLogger, LoggerOptions } from 'the-logger';
-
 import { WebSocketServer } from '../src';
 
 import express from 'express';
 import { Server } from 'http'
 import * as path from "path";
 
+import { logger } from './logger';
 
-const loggerOptions = new LoggerOptions().enableFile(false).pretty(true);
-const logger = setupLogger('test', loggerOptions);
+const RUN_TEST_DEBUG = (process.env.RUN_TEST_DEBUG == 'true');
+const PAUSE_TIMEOUT = RUN_TEST_DEBUG ? 100 * 1000 : 0;
+const TEST_TIMEOUT = PAUSE_TIMEOUT + 2000;
 
 const PORT = process.env.PORT || 3333;
 let globalApp = express();
@@ -45,13 +45,13 @@ describe('main-server', () => {
 
     it('case-01', () => {
         logger.info("Test Init");
-        const wsServer = new WebSocketServer(logger, globalHttp!, '/socket.io');
+        const wsServer = new WebSocketServer(logger, globalHttp!, '/socket');
         return Promise.resolve()
             .then(() => wsServer.run())
-            .then(() => Promise.timeout(1000))
+            .then(() => Promise.timeout(PAUSE_TIMEOUT))
             .then(() => {
             })
     })
-    .timeout(100000);
+    .timeout(TEST_TIMEOUT);
 
 });

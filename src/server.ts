@@ -14,7 +14,7 @@ export class WebSocketServer
 
     private _values : Record<string, TargetInfo> = {};
 
-    constructor(logger: ILogger, httpServer: Server, url: string)
+    constructor(logger: ILogger, httpServer: Server, url?: string)
     {
         this._logger = logger;
 

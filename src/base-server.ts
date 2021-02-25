@@ -350,17 +350,6 @@ export interface MySocket extends NodeJS.EventEmitter {
     emit(ev: string, ...args: any[]): boolean;
     onAny(listener: (...args: any[]) => void): this;
 }
-
-
-// export class MySocket extends SocketIO.Socket {
-//     public customData? : MySocketCustomData;
-
-//     constructor(nsp: SocketIO.Namespace, client: SocketIO.Client, auth: object)
-//     {
-//         super(nsp, client, auth);
-//     }
-// }
-
 export interface MySocketCustomData
 {
     localIdDict: Record<string, SocketSubscriptionInfo>,
