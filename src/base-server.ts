@@ -23,7 +23,7 @@ export class WebSocketBaseServer
     private _subscriptionHandlers : SubscriptionHandler[] = [];
     private _socketHandlers : SocketHandler[] = [];
 
-    constructor(logger: ILogger, httpServer: Server, url: string)
+    constructor(logger: ILogger, httpServer: Server, url?: string)
     {
         this._logger = logger;
 
@@ -32,8 +32,28 @@ export class WebSocketBaseServer
         });
     }
 
+    get logger() {
+        return this._logger;
+    }
+
     run()
     {
+        this.logger.info("[run]");
+
+        // this._io.use((socket, next) => {
+        //     this.logger.info("[USE] %s", socket.id);
+        //     next();
+        // });
+
+        this._io.on("connect_error", (err) => {
+            this.logger.warn("[CONNECT_ERROR] ", err);
+        });
+
+
+        this._io.on("event", () => {
+            this.logger.warn("[EVENT] ");
+        });
+
         this._io.on('connection', (socket) => {
             this._runPromise('connection', () => {
                 return this._newConnection(socket);
@@ -305,6 +325,8 @@ export class WebSocketBaseServer
 
     private _runPromise(name: string, cb: () => any)
     {
+        this._logger.debug("In WebSocket :: %s", name);
+
         try
         {
             Promise.resolve(cb())
@@ -326,6 +348,7 @@ export interface MySocket extends NodeJS.EventEmitter {
     customData? : MySocketCustomData;
 
     emit(ev: string, ...args: any[]): boolean;
+    onAny(listener: (...args: any[]) => void): this;
 }
 
 

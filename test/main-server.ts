@@ -2,15 +2,16 @@ import 'mocha';
 import should = require('should');
 import { Promise } from 'the-promise';
 
-import { setupLogger, LoggerOptions, LogLevel } from 'the-logger';
+import { setupLogger, LoggerOptions } from 'the-logger';
 
-import { WebSocketBaseServer } from '../src';
+import { WebSocketServer } from '../src';
 
 import express from 'express';
 import { Server } from 'http'
 import * as path from "path";
 
-const loggerOptions = new LoggerOptions().enableFile(false).pretty(true).subLevel('test', LogLevel.debug);
+
+const loggerOptions = new LoggerOptions().enableFile(false).pretty(true);
 const logger = setupLogger('test', loggerOptions);
 
 const PORT = process.env.PORT || 3333;
@@ -22,7 +23,7 @@ globalApp.get("/", (req: any, res: any) => {
     res.sendFile(path.resolve(__dirname, "./client/index.html"));
 });
 
-describe('base-server', () => {
+describe('main-server', () => {
 
     beforeEach(() => {
         logger.info("[beforeEach]");
@@ -44,7 +45,7 @@ describe('base-server', () => {
 
     it('case-01', () => {
         logger.info("Test Init");
-        const wsServer = new WebSocketBaseServer(logger, globalHttp!, '/socket');//, '/socket.io');
+        const wsServer = new WebSocketServer(logger, globalHttp!, '/socket.io');
         return Promise.resolve()
             .then(() => wsServer.run())
             .then(() => Promise.timeout(1000))

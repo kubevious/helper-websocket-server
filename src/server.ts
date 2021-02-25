@@ -28,6 +28,7 @@ export class WebSocketServer
 
     run()
     {
+        this.logger.info("[run]");
         return this._baseServer.run();
     }
 
