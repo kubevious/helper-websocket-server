@@ -46,8 +46,28 @@ describe('base-server', () => {
 
 
     it('case-01', () => {
-        logger.info("Test Init");
         const wsServer = new WebSocketBaseServer(logger, globalHttp!, '/socket');
+        return Promise.resolve()
+            .then(() => wsServer.run())
+            .then(() => Promise.timeout(PAUSE_TIMEOUT))
+            .then(() => {
+            })
+    })
+    .timeout(TEST_TIMEOUT);
+
+
+    it('case-02', () => {
+        const wsServer = new WebSocketBaseServer(logger, globalHttp!, '/socket');
+
+        wsServer.setupSubscriptionMetaFetcher((target, socket) => {
+            return {
+                contextFields: ['foo', 'bar'],
+                targetExtras: {
+                    projectId: 'foo-bar'
+                }
+            };
+        })
+
         return Promise.resolve()
             .then(() => wsServer.run())
             .then(() => Promise.timeout(PAUSE_TIMEOUT))

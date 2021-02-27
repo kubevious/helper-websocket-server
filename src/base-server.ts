@@ -5,11 +5,14 @@ import { ILogger } from 'the-logger'
 import { Server } from 'http'
 import * as SocketIO from 'socket.io'
 
+import { UserMessages } from './types';
+
+import { makeKey } from './utils';
 
 export type WebSocketTarget = Record<string, any>;
 export type WebSocketMiddleware = (socket: SocketIO.Socket, next: (err?: any) => void) => void;
 
-export type GlobalTargetFormatter = (target: WebSocketTarget, socket: MySocket) => WebSocketTarget;
+export type SubscriptionMetaFetcherCb = (target: WebSocketTarget, socket: MySocket) => SubscriptionMeta;
 export type SubscriptionHandler = (present: boolean, target: WebSocketTarget, socket: MySocket) => any;
 export type SocketHandler = (globalTarget: WebSocketTarget, socket: MySocket, globalId: string, localTarget: WebSocketTarget) => any;
 
@@ -18,8 +21,8 @@ export class WebSocketBaseServer
     private _logger : ILogger;
     private _io : SocketIO.Server;
 
-    private _subscriptions : Record<string, { globalTarget: WebSocketTarget, sockets: Record<string, MySocket>}> = {};
-    private _makeGlobalTargetCb : GlobalTargetFormatter | null = null;
+    private _subscriptions : Record<string, ServerSubscriptionInfo> = {};
+    private _subscriptionMetaFetcherCb : SubscriptionMetaFetcherCb | null = null;
     private _subscriptionHandlers : SubscriptionHandler[] = [];
     private _socketHandlers : SocketHandler[] = [];
 
@@ -40,19 +43,13 @@ export class WebSocketBaseServer
     {
         this.logger.info("[run]");
 
-        // this._io.use((socket, next) => {
-        //     this.logger.info("[USE] %s", socket.id);
-        //     next();
-        // });
-
         this._io.on("connect_error", (err) => {
             this.logger.warn("[CONNECT_ERROR] ", err);
         });
 
-
-        this._io.on("event", () => {
-            this.logger.warn("[EVENT] ");
-        });
+        // this._io.on("event", () => {
+        //     this.logger.warn("[EVENT] ");
+        // });
 
         this._io.on('connection', (socket) => {
             this._runPromise('connection', () => {
@@ -61,9 +58,9 @@ export class WebSocketBaseServer
         });
     }
 
-    setupGlobalTargetFormatter(cb: GlobalTargetFormatter)
+    setupSubscriptionMetaFetcher(cb: SubscriptionMetaFetcherCb)
     {
-        this._makeGlobalTargetCb = cb;
+        this._subscriptionMetaFetcherCb = cb;
     }
 
     use(middleware: WebSocketMiddleware)
@@ -79,7 +76,7 @@ export class WebSocketBaseServer
             return;
         }
 
-        let localId = this.makeKey(localTarget);
+        let localId = makeKey(localTarget);
         let socketSubscription = socket.customData.localIdDict[localId];
         if (!socketSubscription)
         {
@@ -93,7 +90,7 @@ export class WebSocketBaseServer
     {
         this._logger.verbose('[notifyAll] globalTarget && value: ', globalTarget, value);
 
-        let globalId = this.makeKey(globalTarget);
+        let globalId = makeKey(globalTarget);
         let subscriptionInfo = this._subscriptions[globalId];
         if (!subscriptionInfo)
         {
@@ -128,25 +125,26 @@ export class WebSocketBaseServer
         this._logger.debug('[_newConnection] id: %s', socket.id);
 
         socket.customData = {
+            context: {},
             localIdDict: {},
             globalIdDict: {},
         };
 
-        socket.on('subscribe', (localTarget) => {
-            this._runPromise('subscribe', () => {
+        socket.on(UserMessages.subscribe, (localTarget) => {
+            this._runPromise(UserMessages.subscribe, () => {
                 return this._handleSubscribe(socket, localTarget);
             })
         });
 
-        socket.on('unsubscribe', (localTarget) => {
-            this._runPromise('unsubscribe', () => {
+        socket.on(UserMessages.unsubscribe, (localTarget) => {
+            this._runPromise(UserMessages.unsubscribe, () => {
                 return this._handleUnsubscribe(socket, localTarget);
             })
         });
 
-        socket.on('unsubscribe_all', () => {
-            this._runPromise('subscribe', () => {
-                return this._handleUnubscribeAll(socket);
+        socket.on(UserMessages.update_context, (context) => {
+            this._runPromise(UserMessages.update_context, () => {
+                return this._setupContext(socket, context);
             })
         });
 
@@ -163,45 +161,23 @@ export class WebSocketBaseServer
             return;
         }
 
-        let localId = this.makeKey(localTarget);
-        let globalTarget = this._makeGlobalTarget(localTarget, socket);
-        let globalId = this.makeKey(globalTarget);
+        let localId = makeKey(localTarget);
+        this._logger.debug('[_handleSubscribe] id: %s, localTarget: ', socket.id, localTarget);
 
-        this._logger.debug('[_handleSubscribe] id: %s, globalTarget: ', socket.id, globalTarget);
+        let meta = this._fetchSubscriptionMeta(localTarget, socket);
 
-        let socketSubscriptionInfo = {
+        let socketSubscriptionInfo : SocketSubscriptionInfo = {
             localId: localId,
-            globalId: globalId,
             localTarget: localTarget,
-            globalTarget: globalTarget
+            contextFields: meta.contextFields,
+            targetExtras: meta.targetExtras
         };
         socket.customData.localIdDict[localId] = socketSubscriptionInfo;
-        socket.customData.globalIdDict[globalId] = socketSubscriptionInfo;
 
-        let wasNew = false;
-        if (!this._subscriptions[globalId]) {
-            wasNew = true;
-            this._subscriptions[globalId] = {
-                globalTarget: globalTarget,
-                sockets: {}
-            };
+        const tx = this._handleGlobalSubscription(socket, socketSubscriptionInfo);
+        if (tx) {
+            return this._completeTransaction(tx);
         }
-        this._subscriptions[globalId].sockets[socket.id] = socket;
-
-        return Promise.resolve()
-            .then(() => {
-                if (wasNew) {
-                    return this._trigger(this._subscriptionHandlers, 
-                        [true, globalTarget],
-                        'create-subscription-handlers');
-                }
-            })
-            .then(() => {
-                return this._trigger(this._socketHandlers, 
-                    [globalTarget, socket, globalId, localTarget],
-                    'socket-handlers');
-            })
-            ;
     }
 
     private _handleUnsubscribe(socket: MySocket, localTarget: WebSocketTarget)
@@ -210,49 +186,218 @@ export class WebSocketBaseServer
             return;
         }
 
-        let localId = this.makeKey(localTarget);
+        const localId = makeKey(localTarget);
 
         this._logger.debug('[_handleUnsubscribe] id: %s, localTarget: ', socket.id, localTarget);
-
-        let wasDeleted = false;
 
         let socketSubscription = socket.customData.localIdDict[localId];
         if (socketSubscription)
         {
-            let subscriptionInfo = this._subscriptions[socketSubscription.globalId];
-            if (subscriptionInfo) {
-                delete subscriptionInfo.sockets[socket.id];
-    
-                if (_.keys(subscriptionInfo.sockets).length == 0) {
-                    delete this._subscriptions[socketSubscription.globalId];
-                    wasDeleted = true;
-                }
-            }
-
             delete socket.customData.localIdDict[socketSubscription.localId];
-            delete socket.customData.globalIdDict[socketSubscription.globalId];
-
-            if (wasDeleted)
+            if (socketSubscription.globalId)
             {
-                return this._trigger(this._subscriptionHandlers, 
-                    [false, subscriptionInfo.globalTarget],
-                    'delete-subscription-handlers');
+                let tx = this._newTransaction(socket);
+                this._processDeleteGlobalSubscription(tx, socketSubscription);
+                return this._completeTransaction(tx);
             }
         }
     }
 
-    private _makeGlobalTarget(target: WebSocketTarget, socket: MySocket) : WebSocketTarget
+    private _handleGlobalSubscription(socket: MySocket, subscriptionInfo : SocketSubscriptionInfo) : SubscriptionTx | null
     {
-        if (this._makeGlobalTargetCb) {
-            target = _.clone(target);
-            target = this._makeGlobalTargetCb(target, socket);
+        if (!socket.customData) {
+            return null;
+        }
+
+        let tx = this._newTransaction(socket);
+
+        let newGlobalTarget = this._makeGlobalTarget(subscriptionInfo, socket);
+        if (!newGlobalTarget) 
+        {
+            this._logger.debug('[_handleGlobalSubscription] socket: %s, NO newGlobalTarget: ', socket.id);
+
+            if (subscriptionInfo.globalTarget)
+            {
+                this._processDeleteGlobalSubscription(tx, subscriptionInfo);
+            }
+        }
+        else
+        {
+            this._logger.debug('[_handleGlobalSubscription] socket: %s, newGlobalTarget: ', socket.id, newGlobalTarget);
+
+            let globalId = makeKey(newGlobalTarget);
+
+            if (subscriptionInfo.globalId)
+            {
+                if (globalId !== subscriptionInfo.globalId)
+                {
+                    this._processDeleteGlobalSubscription(tx, subscriptionInfo);
+                }
+            }
+           
+            subscriptionInfo.globalId = globalId;
+            subscriptionInfo.globalTarget = newGlobalTarget;
+            this._processCreateGlobalSubscription(tx, subscriptionInfo);
+        }
+
+        return tx;
+    }
+
+    private _processCreateGlobalSubscription(tx: SubscriptionTx, socketSubscription : SocketSubscriptionInfo)
+    {
+        const socket = tx.socket;
+        const customData = socket.customData!;
+
+        const globalId = socketSubscription.globalId!;
+        const globalTarget = socketSubscription.globalTarget!;
+
+        customData.globalIdDict[globalId] = socketSubscription;
+
+        if (!this._subscriptions[globalId]) {
+            tx.wasCreated = true;
+            tx.createdLocalTarget = socketSubscription.localTarget;
+            tx.createdGlobalId = globalId;
+            tx.createdGlobalTarget = globalTarget;
+
+            this._subscriptions[globalId] = {
+                globalId: globalId,
+                globalTarget: globalTarget,
+                sockets: {}
+            };
+        }
+
+        this._subscriptions[globalId].sockets[socket.id] = socket;
+    }
+
+    private _processDeleteGlobalSubscription(tx: SubscriptionTx, socketSubscription : SocketSubscriptionInfo)
+    {
+        const socket = tx.socket;
+        const customData = socket.customData!;
+
+        const globalId = socketSubscription.globalId!;
+
+        let globalSubscriptionInfo = this._subscriptions[globalId];
+        if (globalSubscriptionInfo) {
+            delete globalSubscriptionInfo.sockets[socket.id];
+            if (_.keys(globalSubscriptionInfo.sockets).length == 0) {
+                delete this._subscriptions[globalId];
+                tx.wasDeleted = true;
+            }
+        }
+
+        delete customData.globalIdDict[globalId];
+        socketSubscription.globalId = undefined;
+        socketSubscription.globalTarget = undefined;
+    }
+
+    private _newTransaction(socket: MySocket) : SubscriptionTx
+    {
+        return {
+            socket: socket,
+            wasCreated: false,
+            wasDeleted: false
+        }
+    }
+
+    private _completeTransaction(tx: SubscriptionTx)
+    {
+        return Promise.resolve()
+            .then(() => {
+                if (tx.wasDeleted)
+                {
+                    return this._trigger(this._subscriptionHandlers, 
+                        [false, tx.deletedGlobalTarget!],
+                        'delete-subscription-handlers');
+                }
+            })
+            .then(() => {
+                if (tx.wasCreated) {
+                    return this._trigger(this._subscriptionHandlers, 
+                        [true, tx.createdGlobalTarget!],
+                        'create-subscription-handlers');
+                }
+            })
+            .then(() => {
+                if (tx.wasCreated) {
+                    return this._trigger(this._socketHandlers, 
+                        [tx.createdGlobalTarget!, tx.socket, tx.createdGlobalId!, tx.createdLocalTarget!],
+                        'socket-handlers');
+                }
+            })
+    }
+
+
+    private _setupContext(socket: MySocket, context: WebSocketTarget)
+    {
+        if (!socket.customData) {
+            return;
+        }
+
+        const customData = socket.customData;
+
+        for(let key of _.keys(context))
+        {
+            let value = context[key];
+            if (_.isNullOrUndefined(value))
+            {
+                delete customData.context[key];
+            }
+            else
+            {
+                customData.context[key] = value;
+            }
+        }
+
+
+        const txList : SubscriptionTx[] = []
+
+        for(let socketSubscription of _.values(customData.localIdDict))
+        {
+            if (socketSubscription.globalId)
+            {
+                let tx = this._newTransaction(socket);
+                this._processDeleteGlobalSubscription(tx, socketSubscription);
+                txList.push(tx);
+            }
+        }
+
+        return Promise.serial(txList, tx => {
+            return this._completeTransaction(tx);
+        })
+    } 
+
+    private _makeGlobalTarget(subscription: SocketSubscriptionInfo, socket: MySocket) : WebSocketTarget | null
+    {
+        let target = _.clone(subscription.localTarget);
+        if (subscription.targetExtras) 
+        {
+            target = _.defaults(target, subscription.targetExtras!)
+        }
+        if (subscription.contextFields)
+        {
+            for(let field of subscription.contextFields)
+            {
+                const fieldValue = socket.customData?.context[field];
+                if (_.isNullOrUndefined(fieldValue)) {
+                    // return null;
+                } else {
+                    target[field] = fieldValue;
+                }
+            }
         }
         return target;
     }
 
-    private _handleUnubscribeAll(socket: MySocket)
+    private _fetchSubscriptionMeta(target: WebSocketTarget, socket: MySocket) : SubscriptionMeta
     {
-        return this._removeAllSubscriptions(socket);
+        if (this._subscriptionMetaFetcherCb) {
+            const meta = this._subscriptionMetaFetcherCb(target, socket);
+            if (!meta) {
+                return {}
+            }
+            return meta;
+        }
+        return {};
     }
 
     private _handleDisconnect(socket: MySocket)
@@ -262,7 +407,9 @@ export class WebSocketBaseServer
         return Promise.resolve()
             .then(() => this._removeAllSubscriptions(socket))
             .then(() => {
-                return delete socket.customData;
+                if (socket.customData) {
+                    socket.customData = undefined;
+                }
             })
     }
 
@@ -277,32 +424,24 @@ export class WebSocketBaseServer
 
         this._logger.debug('[_removeAllSubscriptions] socket: %s', socket.id);
 
-        let toBeDeletedTargets = [];
+        const txList : SubscriptionTx[] = []
+
         for(let socketSubscription of _.values(socket.customData.localIdDict))
         {
-            let subscriptionInfo = this._subscriptions[socketSubscription.globalId];
-            if (subscriptionInfo) {
-                delete subscriptionInfo.sockets[socket.id];
-
-                if (_.keys(subscriptionInfo.sockets).length == 0) {
-                    delete this._subscriptions[socketSubscription.globalId];
-                    toBeDeletedTargets.push(subscriptionInfo.globalTarget);
-                }
+            if (socketSubscription.globalId)
+            {
+                let tx = this._newTransaction(socket);
+                this._processDeleteGlobalSubscription(tx, socketSubscription);
+                txList.push(tx);
             }
         }
+
         socket.customData.localIdDict = {};
         socket.customData.globalIdDict = {};
 
-        return Promise.serial(toBeDeletedTargets, globalTarget => {
-            return this._trigger(this._subscriptionHandlers, 
-                [false, globalTarget],
-                'delete-all-subscriptions-handlers');
+        return Promise.serial(txList, tx => {
+            return this._completeTransaction(tx);
         })
-    }
-
-    makeKey(target: WebSocketTarget) : string
-    {
-        return _.stableStringify(target);
     }
 
     private _notify(socket: MySocket, globalTarget: WebSocketTarget, value: any)
@@ -352,6 +491,7 @@ export interface MySocket extends NodeJS.EventEmitter {
 }
 export interface MySocketCustomData
 {
+    context: WebSocketTarget,
     localIdDict: Record<string, SocketSubscriptionInfo>,
     globalIdDict: Record<string, SocketSubscriptionInfo>,
 }
@@ -359,7 +499,40 @@ export interface MySocketCustomData
 export interface SocketSubscriptionInfo
 {
     localId: string,
-    globalId: string,
     localTarget: WebSocketTarget,
-    globalTarget: WebSocketTarget
+    
+    contextFields?: string[],
+    targetExtras?: WebSocketTarget
+
+    globalId?: string,
+    globalTarget?: WebSocketTarget
+}
+
+export interface ServerSubscriptionInfo
+{
+    globalId: string,
+    globalTarget: WebSocketTarget,
+    sockets: Record<string, MySocket>
+}
+
+export interface SubscriptionMeta
+{
+    contextFields?: string[],
+    targetExtras?: WebSocketTarget
+}
+
+
+interface SubscriptionTx
+{
+    socket: MySocket,
+    // socketSubscription : SocketSubscriptionInfo,
+
+    wasDeleted: boolean,
+    deletedGlobalId?: string,
+    deletedGlobalTarget?: WebSocketTarget
+
+    wasCreated: boolean,
+    createdLocalTarget?: WebSocketTarget,
+    createdGlobalId?: string,
+    createdGlobalTarget?: WebSocketTarget
 }

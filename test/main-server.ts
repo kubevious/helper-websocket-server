@@ -44,7 +44,6 @@ describe('main-server', () => {
 
 
     it('case-01', () => {
-        logger.info("Test Init");
         const wsServer = new WebSocketServer(logger, globalHttp!, '/socket');
         return Promise.resolve()
             .then(() => wsServer.run())

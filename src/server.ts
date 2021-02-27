@@ -4,6 +4,7 @@ import { ILogger } from 'the-logger'
 import { Server } from 'http'
 
 import * as HashUtils from './hash-utils';
+import { makeKey } from './utils';
 
 import { MySocket, WebSocketBaseServer, WebSocketMiddleware, WebSocketTarget } from './base-server';
 
@@ -41,7 +42,7 @@ export class WebSocketServer
     {
         this._logger.verbose('[update] ', target, value);
 
-        let id = this._baseServer.makeKey(target);
+        const id = makeKey(target);
 
         let isChanged : boolean = false;
 
@@ -83,7 +84,7 @@ export class WebSocketServer
         {
             let target = _.clone(newItem.target);
             _.defaults(target, scope)
-            let id = this._baseServer.makeKey(target);
+            let id = makeKey(target);
             newItemsDict[id] = {
                 target: target,
                 value: newItem.value
