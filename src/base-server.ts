@@ -333,6 +333,8 @@ export class WebSocketBaseServer
             return;
         }
 
+        this._logger.debug('[_setupContext] id: %s, context: ', socket.id, context);
+
         const customData = socket.customData;
 
         for(let key of _.keys(context))
