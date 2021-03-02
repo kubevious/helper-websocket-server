@@ -8,6 +8,7 @@ import * as SocketIO from 'socket.io'
 import { UserMessages } from './types';
 
 import { makeKey } from './utils';
+import e from 'express'
 
 export type WebSocketTarget = Record<string, any>;
 export type WebSocketMiddleware = (socket: SocketIO.Socket, next: (err?: any) => void) => void;
@@ -337,19 +338,11 @@ export class WebSocketBaseServer
 
         const customData = socket.customData;
 
-        for(let key of _.keys(context))
-        {
-            let value = context[key];
-            if (_.isNullOrUndefined(value))
-            {
-                delete customData.context[key];
-            }
-            else
-            {
-                customData.context[key] = value;
-            }
+        if (context) {
+            customData.context = context;
+        } else {
+            customData.context = {};
         }
-
 
         const txList : SubscriptionTx[] = []
 
@@ -381,7 +374,7 @@ export class WebSocketBaseServer
             {
                 const fieldValue = socket.customData?.context[field];
                 if (_.isNullOrUndefined(fieldValue)) {
-                    // return null;
+                    return null;
                 } else {
                     target[field] = fieldValue;
                 }
