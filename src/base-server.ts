@@ -176,9 +176,7 @@ export class WebSocketBaseServer
         socket.customData.localIdDict[localId] = socketSubscriptionInfo;
 
         const tx = this._handleGlobalSubscription(socket, socketSubscriptionInfo);
-        if (tx) {
-            return this._completeTransaction(tx);
-        }
+        return this._completeTransaction(tx);
     }
 
     private _handleUnsubscribe(socket: MySocket, localTarget: WebSocketTarget)
@@ -204,12 +202,8 @@ export class WebSocketBaseServer
         }
     }
 
-    private _handleGlobalSubscription(socket: MySocket, subscriptionInfo : SocketSubscriptionInfo) : SubscriptionTx | null
+    private _handleGlobalSubscription(socket: MySocket, subscriptionInfo : SocketSubscriptionInfo) : SubscriptionTx
     {
-        if (!socket.customData) {
-            return null;
-        }
-
         let tx = this._newTransaction(socket);
 
         let newGlobalTarget = this._makeGlobalTarget(subscriptionInfo, socket);
@@ -252,13 +246,14 @@ export class WebSocketBaseServer
         const globalId = socketSubscription.globalId!;
         const globalTarget = socketSubscription.globalTarget!;
 
+        tx.localTarget = socketSubscription.localTarget;
+        tx.globalId = globalId;
+        tx.globalTarget = globalTarget;
+
         customData.globalIdDict[globalId] = socketSubscription;
 
         if (!this._subscriptions[globalId]) {
             tx.wasCreated = true;
-            tx.createdLocalTarget = socketSubscription.localTarget;
-            tx.createdGlobalId = globalId;
-            tx.createdGlobalTarget = globalTarget;
 
             this._subscriptions[globalId] = {
                 globalId: globalId,
@@ -314,13 +309,13 @@ export class WebSocketBaseServer
             .then(() => {
                 if (tx.wasCreated) {
                     return this._trigger(this._subscriptionHandlers, 
-                        [true, tx.createdGlobalTarget!],
+                        [true, tx.globalTarget!],
                         'create-subscription-handlers');
                 }
             })
             .then(() => {
                 return this._trigger(this._socketHandlers, 
-                    [tx.createdGlobalTarget!, tx.socket, tx.createdGlobalId!, tx.createdLocalTarget!],
+                    [tx.globalTarget!, tx.socket, tx.globalId!, tx.localTarget!],
                     'socket-handlers');
             })
     }
@@ -525,7 +520,7 @@ interface SubscriptionTx
     deletedGlobalTarget?: WebSocketTarget
 
     wasCreated: boolean,
-    createdLocalTarget?: WebSocketTarget,
-    createdGlobalId?: string,
-    createdGlobalTarget?: WebSocketTarget
+    localTarget?: WebSocketTarget,
+    globalId?: string,
+    globalTarget?: WebSocketTarget
 }
