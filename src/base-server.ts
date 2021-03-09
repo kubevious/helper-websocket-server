@@ -71,7 +71,8 @@ export class WebSocketBaseServer
 
     notifySocket(socket: MySocket, localTarget: WebSocketTarget, value: any)
     {
-        this._logger.verbose('[notifySocket] socket: %s, localTarget && value: ', socket.id, localTarget, value);
+        this._logger.verbose('[notifySocket] socket: %s, localTarget: ', socket.id, localTarget);
+        this._logger.silly('[notifySocket] socket: %s, localTarget && value: ', socket.id, localTarget, value);
 
         if (!socket.customData) {
             return;

@@ -40,7 +40,8 @@ export class WebSocketServer
 
     update(target: WebSocketTarget, value: any)
     {
-        this._logger.verbose('[update] ', target, value);
+        this._logger.verbose('[update] ', target);
+        this._logger.silly('[update] ', target, value);
 
         const id = makeKey(target);
 
@@ -121,6 +122,7 @@ export class WebSocketServer
 
     private _handleSocket(globalTarget: WebSocketTarget, socket: MySocket, globalId: string, localTarget: WebSocketTarget)
     {
+        this._logger.verbose('[_handleSocket] globalId: %s, globalTarget:', globalId, globalTarget);
         let valueInfo = this._values[globalId];
 
         let value = null;
@@ -128,7 +130,7 @@ export class WebSocketServer
             value = valueInfo.value
         }
 
-        this._baseServer.notifySocket(socket, globalTarget, value);
+        this._baseServer.notifySocket(socket, localTarget, value);
     }
 
     private _scopeItems(scope: WebSocketTarget) : Record<string, TargetInfo>

@@ -19,10 +19,12 @@
       // client-side
       socket.on("connect", () => {
         console.log('CONNECT', socket.id); 
+
+        socket.emit("subscribe", { kind: 'messages' });
       });
 
       socket.on("update", (data) => {
-        console.log('UPDATE ', socket.id, data); 
+        console.log('ON-UPDATE ', socket.id, data); 
       });
 
       socket.on("disconnect", () => {
@@ -30,7 +32,6 @@
       });
 
       function sendMsg() {
-        socket.emit("subscribe", { msg: "HELLO WORLD"});
       }
     </script>
   </body>

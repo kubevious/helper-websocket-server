@@ -43,10 +43,14 @@ describe('main-server', () => {
     });
 
 
-    it('case-01', () => {
+    it('constructor', () => {
         const wsServer = new WebSocketServer(logger, globalHttp!, '/socket');
         return Promise.resolve()
             .then(() => wsServer.run())
+            .then(() => Promise.timeout(1 * 1000))
+            .then(() => {
+                return wsServer.update({ kind: 'messages' }, ['foo', 'bar']);
+            })
             .then(() => Promise.timeout(PAUSE_TIMEOUT))
             .then(() => {
             })
