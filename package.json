@@ -1,6 +1,6 @@
 {
   "name": "@kubevious/websocket-server",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Kubevious Websocket Server Library",
   "main": "dist/index.js",
   "types": "dist",
