@@ -8,7 +8,6 @@ import * as SocketIO from 'socket.io'
 import { UserMessages } from './types';
 
 import { makeKey } from './utils';
-import e from 'express'
 
 export type WebSocketTarget = Record<string, any>;
 export type WebSocketMiddleware = (socket: SocketIO.Socket, next: (err?: any) => void) => void;
@@ -320,11 +319,9 @@ export class WebSocketBaseServer
                 }
             })
             .then(() => {
-                if (tx.wasCreated) {
-                    return this._trigger(this._socketHandlers, 
-                        [tx.createdGlobalTarget!, tx.socket, tx.createdGlobalId!, tx.createdLocalTarget!],
-                        'socket-handlers');
-                }
+                return this._trigger(this._socketHandlers, 
+                    [tx.createdGlobalTarget!, tx.socket, tx.createdGlobalId!, tx.createdLocalTarget!],
+                    'socket-handlers');
             })
     }
 
