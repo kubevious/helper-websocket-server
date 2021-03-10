@@ -18,9 +18,9 @@
   "license": "Propriatery",
   "dependencies": {
     "socket.io": "^3.1.1",
-    "the-lodash": "^2.0.7",
-    "the-logger": "^2.0.8",
-    "the-promise": "^2.0.10"
+    "the-lodash": "^2.0.8",
+    "the-logger": "^2.0.9",
+    "the-promise": "^2.0.12"
   },
   "devDependencies": {
     "@types/mocha": "^8.0.3",
