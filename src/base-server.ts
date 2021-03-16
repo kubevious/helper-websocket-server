@@ -199,7 +199,9 @@ export class WebSocketBaseServer
         socket.customData.localIdDict[localId] = socketSubscriptionInfo;
 
         const tx = this._handleGlobalSubscription(socket, socketSubscriptionInfo);
-        return this._completeTransaction(tx);
+        if (tx) {
+            return this._completeTransaction(tx);
+        }
     }
 
     private _handleUnsubscribe(socket: MySocket, localTarget: WebSocketTarget)
@@ -225,7 +227,7 @@ export class WebSocketBaseServer
         }
     }
 
-    private _handleGlobalSubscription(socket: MySocket, subscriptionInfo : SocketSubscriptionInfo) : SubscriptionTx
+    private _handleGlobalSubscription(socket: MySocket, subscriptionInfo : SocketSubscriptionInfo) : SubscriptionTx | null
     {
         let tx = this._newTransaction(socket);
 
@@ -238,6 +240,10 @@ export class WebSocketBaseServer
             {
                 this._processDeleteGlobalSubscription(tx, subscriptionInfo);
             }
+            else
+            {
+                return null;
+            }
         }
         else
         {
@@ -247,7 +253,11 @@ export class WebSocketBaseServer
 
             if (subscriptionInfo.globalId)
             {
-                if (globalId !== subscriptionInfo.globalId)
+                if (globalId === subscriptionInfo.globalId)
+                {
+                    return null;
+                }
+                else
                 {
                     this._processDeleteGlobalSubscription(tx, subscriptionInfo);
                 }
@@ -337,9 +347,11 @@ export class WebSocketBaseServer
                 }
             })
             .then(() => {
-                return this._trigger(this._socketHandlers, 
-                    [tx.globalTarget!, tx.socket, tx.globalId!, tx.localTarget!],
-                    'socket-handlers');
+                if (tx.globalId) {
+                    return this._trigger(this._socketHandlers, 
+                        [tx.globalTarget!, tx.socket, tx.globalId!, tx.localTarget!],
+                        'socket-handlers');
+                }
             })
     }
 
@@ -364,10 +376,8 @@ export class WebSocketBaseServer
 
         for(let socketSubscription of _.values(customData.localIdDict))
         {
-            if (socketSubscription.globalId)
-            {
-                let tx = this._newTransaction(socket);
-                this._processDeleteGlobalSubscription(tx, socketSubscription);
+            let tx = this._handleGlobalSubscription(socket, socketSubscription);
+            if (tx) {
                 txList.push(tx);
             }
         }
@@ -463,7 +473,7 @@ export class WebSocketBaseServer
         })
     }
  
-    private _trigger(cbList: any[], params: any[], name: string) : Promise<any>
+    private _trigger(cbList: ((...args : any) => any)[], params: any[], name: string) : Promise<any>
     {
         return Promise.serial(cbList, x => {
             return x.apply(null, params);
