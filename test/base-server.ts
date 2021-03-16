@@ -76,4 +76,29 @@ describe('base-server', () => {
     })
     .timeout(TEST_TIMEOUT);
 
+
+    it('middleware-01', () => {
+        const wsServer = new WebSocketBaseServer(logger, globalHttp!, '/socket');
+
+        wsServer.setupSubscriptionMetaFetcher((target, socket) => {
+            return {
+                contextFields: ['foo', 'bar'],
+                targetExtras: {
+                    projectId: 'foo-bar'
+                }
+            };
+        })
+
+        wsServer.use((socket, customData) => {
+            return Promise.resolve();
+        });
+
+        return Promise.resolve()
+            .then(() => wsServer.run())
+            .then(() => Promise.timeout(PAUSE_TIMEOUT))
+            .then(() => {
+            })
+    })
+    .timeout(TEST_TIMEOUT);
+
 });

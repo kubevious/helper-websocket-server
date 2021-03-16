@@ -1,5 +1,5 @@
 import _ from 'the-lodash'
-import { Promise } from 'the-promise'
+import { Promise, Resolvable } from 'the-promise'
 import { ILogger } from 'the-logger'
 
 import { Server } from 'http'
@@ -10,7 +10,7 @@ import { UserMessages } from './types';
 import { makeKey } from './utils';
 
 export type WebSocketTarget = Record<string, any>;
-export type WebSocketMiddleware = (socket: SocketIO.Socket, next: (err?: any) => void) => void;
+export type WebSocketMiddleware = (socket: MySocket, customData: MySocketCustomData) => Resolvable<void>;
 
 export type SubscriptionMetaFetcherCb = (target: WebSocketTarget, socket: MySocket) => SubscriptionMeta;
 export type SubscriptionHandler = (present: boolean, target: WebSocketTarget, socket: MySocket) => any;
@@ -33,6 +33,8 @@ export class WebSocketBaseServer
         this._io = new SocketIO.Server(httpServer, {
             path: url
         });
+
+        this._io.use(this._initMiddleware.bind(this));
     }
 
     get logger() {
@@ -65,7 +67,19 @@ export class WebSocketBaseServer
 
     use(middleware: WebSocketMiddleware)
     {
-        return this._io.use(middleware);
+        return this._io.use((socket, next) => {
+
+            const mySocket = <MySocket> socket;
+
+            Promise.resolve()
+                .then(() => middleware(socket, mySocket.customData!))
+                .then(() => next())
+                .catch(reason => {
+                    next(reason);
+                })
+                .then(() => null);
+
+        });
     }
 
     notifySocket(socket: MySocket, localTarget: WebSocketTarget, value: any)
@@ -121,15 +135,24 @@ export class WebSocketBaseServer
         this._socketHandlers.push(cb);
     }
 
-    private _newConnection(socket: MySocket)
+    private _initMiddleware(socket: SocketIO.Socket, next: (err?: any) => void) : void
     {
-        this._logger.debug('[_newConnection] id: %s', socket.id);
-
-        socket.customData = {
+        const mySocket = <MySocket>socket;
+        mySocket.customData = {
             context: {},
             localIdDict: {},
             globalIdDict: {},
         };
+        next();
+    }
+
+    private _newConnection(socket: MySocket)
+    {
+        this._logger.debug('[_newConnection] id: %s', socket.id);
+
+        if (!socket.customData) {
+            return;
+        }
 
         socket.on(UserMessages.subscribe, (localTarget) => {
             this._runPromise(UserMessages.subscribe, () => {
