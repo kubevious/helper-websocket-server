@@ -2,8 +2,9 @@ import _ from 'the-lodash'
 import { Promise, Resolvable } from 'the-promise'
 import { ILogger } from 'the-logger'
 
-import { Server } from 'http'
+import { Server, IncomingMessage } from 'http'
 import * as SocketIO from 'socket.io'
+import { Request, Response, NextFunction } from 'express';
 
 import { UserMessages } from './types';
 
@@ -16,6 +17,8 @@ export type SubscriptionMetaFetcherCb = (target: WebSocketTarget, socket: MySock
 export type SubscriptionHandler = (present: boolean, target: WebSocketTarget, socket: MySocket) => any;
 export type SocketHandler = (globalTarget: WebSocketTarget, socket: MySocket, globalId: string, localTarget: WebSocketTarget) => any;
 
+export type ServerMiddlewareCallbackFunc<TLocals = any> = (req: Request, res: Response<any, TLocals>, next: NextFunction) => void;
+export type ServerMiddlewarePromiseFunc<TLocals = any> = (req: Request, res: Response<any, TLocals>) => Promise<any> | void;
 export class WebSocketBaseServer
 {
     private _logger : ILogger;
@@ -45,14 +48,6 @@ export class WebSocketBaseServer
     {
         this.logger.info("[run]");
 
-        this._io.on("connect_error", (err) => {
-            this.logger.warn("[CONNECT_ERROR] ", err);
-        });
-
-        // this._io.on("event", () => {
-        //     this.logger.warn("[EVENT] ");
-        // });
-
         this._io.on('connection', (socket) => {
             this._runPromise('connection', () => {
                 return this._newConnection(socket);
@@ -80,6 +75,51 @@ export class WebSocketBaseServer
                 .then(() => null);
 
         });
+    }
+
+    useExpressCallback<TLocals>(middleware: ServerMiddlewareCallbackFunc<TLocals>)
+    {
+        this.use((socket: MySocket, customData: MySocketCustomData) => {
+            const req = this._makeExpressRequest(socket);
+            const res = this._makeExpressResponse<TLocals>(socket);
+
+            return Promise.construct((resolve, reject) => {
+                middleware(
+                    req,
+                    res,
+                    (error: any) => {
+                        if (error) {
+                            reject(error)
+                        } else {
+                            resolve();
+                        }
+                    }
+                )
+            })
+        });
+    }
+
+    useP<TLocals>(middleware: ServerMiddlewarePromiseFunc<TLocals>)
+    {
+        this.use((socket: MySocket, customData: MySocketCustomData) => {
+            const req = this._makeExpressRequest(socket);
+            const res = this._makeExpressResponse<TLocals>(socket);
+            return middleware(req, res);
+        });
+    }
+
+    private _makeExpressRequest(socket: MySocket) : Request
+    {
+        const req : Request = <Request>socket.request;
+        return req;
+    }
+
+    private _makeExpressResponse<TLocals>(socket: MySocket) : Response<any, TLocals>
+    {
+        const res : Response<any, TLocals> = <Response<any, TLocals>>{
+            locals: <TLocals>(<any>socket.customData)
+        };
+        return res;
     }
 
     notifySocket(socket: MySocket, localTarget: WebSocketTarget, value: any)
@@ -505,6 +545,7 @@ export class WebSocketBaseServer
 export interface MySocket extends NodeJS.EventEmitter {
     id: string;
     
+    request: IncomingMessage,
     customData? : MySocketCustomData;
 
     emit(ev: string, ...args: any[]): boolean;
