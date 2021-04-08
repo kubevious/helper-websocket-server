@@ -10,24 +10,24 @@ import { UserMessages } from './types';
 
 import { makeKey } from './utils';
 
-export type WebSocketTarget = Record<string, any>;
-export type WebSocketMiddleware = (socket: MySocket, customData: MySocketCustomData) => Resolvable<void>;
+export type WebSocketTarget = any;// Record<string, any>;
+export type WebSocketMiddleware<TContext extends {} = WebSocketTarget, TLocals extends {} = WebSocketTarget> = (socket: MySocket<TContext, TLocals>, customData: MySocketCustomData<TContext, TLocals>) => Resolvable<void>;
 
-export type SubscriptionMetaFetcherCb = (target: WebSocketTarget, socket: MySocket) => SubscriptionMeta;
-export type SubscriptionHandler = (present: boolean, target: WebSocketTarget, socket: MySocket) => any;
-export type SocketHandler = (globalTarget: WebSocketTarget, socket: MySocket, globalId: string, localTarget: WebSocketTarget) => any;
+export type SubscriptionMetaFetcherCb<TContext extends {} = WebSocketTarget, TLocals extends {} = WebSocketTarget> = (target: WebSocketTarget, socket: MySocket<TContext, TLocals>) => SubscriptionMeta;
+export type SubscriptionHandler<TContext extends {} = WebSocketTarget, TLocals extends {} = WebSocketTarget> = (present: boolean, target: WebSocketTarget, socket: MySocket<TContext, TLocals>) => any;
+export type SocketHandler<TContext extends {} = WebSocketTarget, TLocals extends {} = WebSocketTarget> = (globalTarget: WebSocketTarget, socket: MySocket<TContext, TLocals>, globalId: string, localTarget: WebSocketTarget) => any;
 
 export type ServerMiddlewareCallbackFunc<TLocals = any> = (req: Request, res: Response<any, TLocals>, next: NextFunction) => void;
 export type ServerMiddlewarePromiseFunc<TLocals = any> = (req: Request, res: Response<any, TLocals>) => Promise<any> | void;
-export class WebSocketBaseServer
+export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals extends {} = WebSocketTarget >
 {
     private _logger : ILogger;
     private _io : SocketIO.Server;
 
-    private _subscriptions : Record<string, ServerSubscriptionInfo> = {};
-    private _subscriptionMetaFetcherCb : SubscriptionMetaFetcherCb | null = null;
-    private _subscriptionHandlers : SubscriptionHandler[] = [];
-    private _socketHandlers : SocketHandler[] = [];
+    private _subscriptions : Record<string, ServerSubscriptionInfo<TContext, TLocals>> = {};
+    private _subscriptionMetaFetcherCb : SubscriptionMetaFetcherCb<TContext, TLocals> | null = null;
+    private _subscriptionHandlers : SubscriptionHandler<TContext, TLocals>[] = [];
+    private _socketHandlers : SocketHandler<TContext, TLocals>[] = [];
 
     constructor(logger: ILogger, httpServer: Server, url?: string)
     {
@@ -55,16 +55,16 @@ export class WebSocketBaseServer
         });
     }
 
-    setupSubscriptionMetaFetcher(cb: SubscriptionMetaFetcherCb)
+    setupSubscriptionMetaFetcher(cb: SubscriptionMetaFetcherCb<TContext, TLocals>)
     {
         this._subscriptionMetaFetcherCb = cb;
     }
 
-    use(middleware: WebSocketMiddleware)
+    use(middleware: WebSocketMiddleware<TContext, TLocals>)
     {
         return this._io.use((socket, next) => {
 
-            const mySocket = <MySocket> socket;
+            const mySocket = <MySocket<TContext, TLocals>> socket;
 
             Promise.resolve()
                 .then(() => middleware(socket, mySocket.customData!))
@@ -79,11 +79,11 @@ export class WebSocketBaseServer
         });
     }
 
-    useExpressCallback<TLocals>(middleware: ServerMiddlewareCallbackFunc<TLocals>)
+    useExpressCallback(middleware: ServerMiddlewareCallbackFunc<TLocals>)
     {
-        this.use((socket: MySocket, customData: MySocketCustomData) => {
+        this.use((socket, customData) => {
             const req = this._makeExpressRequest(socket);
-            const res = this._makeExpressResponse<TLocals>(socket);
+            const res = this._makeExpressResponse(socket);
 
             return Promise.construct((resolve, reject) => {
                 middleware(
@@ -101,30 +101,31 @@ export class WebSocketBaseServer
         });
     }
 
-    useP<TLocals>(middleware: ServerMiddlewarePromiseFunc<TLocals>)
+    useP(middleware: ServerMiddlewarePromiseFunc<TLocals>)
     {
-        this.use((socket: MySocket, customData: MySocketCustomData) => {
+        this.use((socket, customData) => {
             const req = this._makeExpressRequest(socket);
             const res = this._makeExpressResponse<TLocals>(socket);
             return middleware(req, res);
         });
     }
 
-    private _makeExpressRequest(socket: MySocket) : Request
+    private _makeExpressRequest(socket: MySocket<TContext, TLocals>) : Request
     {
         const req : Request = <Request>socket.request;
         return req;
     }
 
-    private _makeExpressResponse<TLocals>(socket: MySocket) : Response<any, TLocals>
+    private _makeExpressResponse<TLocals>(socket: MySocket<TContext, TLocals>) : Response<any, TLocals>
     {
+        socket.customData!.locals
         const res : Response<any, TLocals> = <Response<any, TLocals>>{
-            locals: <TLocals>(<any>socket.customData)
+            locals: socket.customData!.locals
         };
         return res;
     }
 
-    notifySocket(socket: MySocket, localTarget: WebSocketTarget, value: any)
+    notifySocket(socket: MySocket<TContext, TLocals>, localTarget: WebSocketTarget, value: any)
     {
         this._logger.verbose('[notifySocket] socket: %s, localTarget: ', socket.id, localTarget);
         this._logger.silly('[notifySocket] socket: %s, localTarget && value: ', socket.id, localTarget, value);
@@ -167,28 +168,30 @@ export class WebSocketBaseServer
         }
     }
 
-    handleSubscription(cb: SubscriptionHandler)
+    handleSubscription(cb: SubscriptionHandler<TContext, TLocals>)
     {
         this._subscriptionHandlers.push(cb);
     }
 
-    handleSocket(cb: SocketHandler)
+    handleSocket(cb: SocketHandler<TContext, TLocals>)
     {
         this._socketHandlers.push(cb);
     }
 
     private _initMiddleware(socket: SocketIO.Socket, next: (err?: any) => void) : void
     {
-        const mySocket = <MySocket>socket;
-        mySocket.customData = {
+        const xx : object = {};
+        const mySocket = <MySocket<TContext, TLocals>>socket;
+        (<any>mySocket).customData = {
             context: {},
+            locals: {},
             localIdDict: {},
             globalIdDict: {},
         };
         next();
     }
 
-    private _newConnection(socket: MySocket)
+    private _newConnection(socket: MySocket<TContext, TLocals>)
     {
         this._logger.debug('[_newConnection] id: %s', socket.id);
 
@@ -221,7 +224,7 @@ export class WebSocketBaseServer
         });
     }
 
-    private _handleSubscribe(socket: MySocket, localTarget: WebSocketTarget)
+    private _handleSubscribe(socket: MySocket<TContext, TLocals>, localTarget: WebSocketTarget)
     {
         if (!socket.customData) {
             return;
@@ -246,7 +249,7 @@ export class WebSocketBaseServer
         }
     }
 
-    private _handleUnsubscribe(socket: MySocket, localTarget: WebSocketTarget)
+    private _handleUnsubscribe(socket: MySocket<TContext, TLocals>, localTarget: WebSocketTarget)
     {
         if (!socket.customData) {
             return;
@@ -269,7 +272,7 @@ export class WebSocketBaseServer
         }
     }
 
-    private _handleGlobalSubscription(socket: MySocket, subscriptionInfo : SocketSubscriptionInfo) : SubscriptionTx | null
+    private _handleGlobalSubscription(socket: MySocket<TContext, TLocals>, subscriptionInfo : SocketSubscriptionInfo) : SubscriptionTx<TContext, TLocals> | null
     {
         let tx = this._newTransaction(socket);
 
@@ -313,7 +316,7 @@ export class WebSocketBaseServer
         return tx;
     }
 
-    private _processCreateGlobalSubscription(tx: SubscriptionTx, socketSubscription : SocketSubscriptionInfo)
+    private _processCreateGlobalSubscription(tx: SubscriptionTx<TContext, TLocals>, socketSubscription : SocketSubscriptionInfo)
     {
         const socket = tx.socket;
         const customData = socket.customData!;
@@ -340,7 +343,7 @@ export class WebSocketBaseServer
         this._subscriptions[globalId].sockets[socket.id] = socket;
     }
 
-    private _processDeleteGlobalSubscription(tx: SubscriptionTx, socketSubscription : SocketSubscriptionInfo)
+    private _processDeleteGlobalSubscription(tx: SubscriptionTx<TContext, TLocals>, socketSubscription : SocketSubscriptionInfo)
     {
         const socket = tx.socket;
         const customData = socket.customData!;
@@ -361,7 +364,7 @@ export class WebSocketBaseServer
         socketSubscription.globalTarget = undefined;
     }
 
-    private _newTransaction(socket: MySocket) : SubscriptionTx
+    private _newTransaction(socket: MySocket<TContext, TLocals>) : SubscriptionTx<TContext, TLocals>
     {
         return {
             socket: socket,
@@ -370,7 +373,7 @@ export class WebSocketBaseServer
         }
     }
 
-    private _completeTransaction(tx: SubscriptionTx)
+    private _completeTransaction(tx: SubscriptionTx<TContext, TLocals>)
     {
         return Promise.resolve()
             .then(() => {
@@ -398,7 +401,7 @@ export class WebSocketBaseServer
     }
 
 
-    private _setupContext(socket: MySocket, context: WebSocketTarget)
+    private _setupContext(socket: MySocket<TContext, TLocals>, context: WebSocketTarget)
     {
         if (!socket.customData) {
             return;
@@ -411,10 +414,10 @@ export class WebSocketBaseServer
         if (context) {
             customData.context = context;
         } else {
-            customData.context = {};
+            (<any>customData).context = {};
         }
 
-        const txList : SubscriptionTx[] = []
+        const txList : SubscriptionTx<TContext, TLocals>[] = []
 
         for(let socketSubscription of _.values(customData.localIdDict))
         {
@@ -429,7 +432,7 @@ export class WebSocketBaseServer
         })
     } 
 
-    private _makeGlobalTarget(subscription: SocketSubscriptionInfo, socket: MySocket) : WebSocketTarget | null
+    private _makeGlobalTarget(subscription: SocketSubscriptionInfo, socket: MySocket<TContext, TLocals>) : WebSocketTarget | null
     {
         let target = _.clone(subscription.localTarget);
         if (subscription.targetExtras) 
@@ -440,7 +443,8 @@ export class WebSocketBaseServer
         {
             for(let field of subscription.contextFields)
             {
-                const fieldValue = socket.customData?.context[field];
+                const customData = socket.customData!;
+                const fieldValue = (<any>customData.context)[field];
                 if (_.isNullOrUndefined(fieldValue)) {
                     return null;
                 } else {
@@ -451,7 +455,7 @@ export class WebSocketBaseServer
         return target;
     }
 
-    private _fetchSubscriptionMeta(target: WebSocketTarget, socket: MySocket) : SubscriptionMeta
+    private _fetchSubscriptionMeta(target: WebSocketTarget, socket: MySocket<TContext, TLocals>) : SubscriptionMeta
     {
         if (this._subscriptionMetaFetcherCb) {
             const meta = this._subscriptionMetaFetcherCb(target, socket);
@@ -463,7 +467,7 @@ export class WebSocketBaseServer
         return {};
     }
 
-    private _handleDisconnect(socket: MySocket)
+    private _handleDisconnect(socket: MySocket<TContext, TLocals>)
     {
         this._logger.debug('[_handleDisconnect] id: %s', socket.id);
 
@@ -476,7 +480,7 @@ export class WebSocketBaseServer
             })
     }
 
-    private _removeAllSubscriptions(socket: MySocket)
+    private _removeAllSubscriptions(socket: MySocket<TContext, TLocals>)
     {
         if (!socket) {
             return;
@@ -487,7 +491,7 @@ export class WebSocketBaseServer
 
         this._logger.debug('[_removeAllSubscriptions] socket: %s', socket.id);
 
-        const txList : SubscriptionTx[] = []
+        const txList : SubscriptionTx<TContext, TLocals>[] = []
 
         for(let socketSubscription of _.values(socket.customData.localIdDict))
         {
@@ -507,7 +511,7 @@ export class WebSocketBaseServer
         })
     }
 
-    private _notify(socket: MySocket, globalTarget: WebSocketTarget, value: any)
+    private _notify(socket: MySocket<TContext, TLocals>, globalTarget: WebSocketTarget, value: any)
     {
         socket.emit('update', {
             target: globalTarget,
@@ -544,18 +548,19 @@ export class WebSocketBaseServer
 
 }
 
-export interface MySocket extends NodeJS.EventEmitter {
+export interface MySocket<TContext extends {} = WebSocketTarget, TLocals extends {} = WebSocketTarget> extends NodeJS.EventEmitter {
     id: string;
     
     request: IncomingMessage,
-    customData? : MySocketCustomData;
+    customData? : MySocketCustomData<TContext, TLocals>;
 
     emit(ev: string, ...args: any[]): boolean;
     onAny(listener: (...args: any[]) => void): this;
 }
-export interface MySocketCustomData
+export interface MySocketCustomData<TContext extends {} = WebSocketTarget, TLocals extends {} = WebSocketTarget>
 {
-    context: WebSocketTarget,
+    context: TContext,
+    locals: TLocals,
     localIdDict: Record<string, SocketSubscriptionInfo>,
     globalIdDict: Record<string, SocketSubscriptionInfo>,
 }
@@ -572,11 +577,11 @@ export interface SocketSubscriptionInfo
     globalTarget?: WebSocketTarget
 }
 
-export interface ServerSubscriptionInfo
+export interface ServerSubscriptionInfo<TContext extends {} = WebSocketTarget, TLocals extends {} = WebSocketTarget>
 {
     globalId: string,
     globalTarget: WebSocketTarget,
-    sockets: Record<string, MySocket>
+    sockets: Record<string, MySocket<TContext, TLocals>>
 }
 
 export interface SubscriptionMeta
@@ -586,9 +591,9 @@ export interface SubscriptionMeta
 }
 
 
-interface SubscriptionTx
+interface SubscriptionTx<TContext extends {} = WebSocketTarget, TLocals extends {} = WebSocketTarget>
 {
-    socket: MySocket,
+    socket: MySocket<TContext, TLocals>,
     // socketSubscription : SocketSubscriptionInfo,
 
     wasDeleted: boolean,
