@@ -68,12 +68,14 @@ export class WebSocketBaseServer
 
             Promise.resolve()
                 .then(() => middleware(socket, mySocket.customData!))
-                .then(() => next())
+                .then(() => {
+                    next()
+                })
                 .catch(reason => {
                     next(reason);
+                    return null;
                 })
                 .then(() => null);
-
         });
     }
 
