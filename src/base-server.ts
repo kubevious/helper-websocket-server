@@ -66,12 +66,13 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
 
             const mySocket = <MySocket<TContext, TLocals>> socket;
 
-            Promise.resolve()
-                .then(() => middleware(socket, mySocket.customData!))
+            Promise.try(() => middleware(socket, mySocket.customData!))
                 .then(() => {
                     next()
+                    return null;
                 })
                 .catch(reason => {
+                    this.logger.warn('[use] ', reason);
                     next(reason);
                     return null;
                 })
@@ -91,6 +92,7 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
                     res,
                     (error: any) => {
                         if (error) {
+                            this.logger.warn('[useExpressCallback] ', error);
                             reject(error)
                         } else {
                             resolve();
@@ -103,9 +105,9 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
 
     useP(middleware: ServerMiddlewarePromiseFunc<TLocals>)
     {
-        this.use((socket, customData) => {
+        this.use((socket) => {
             const req = this._makeExpressRequest(socket);
-            const res = this._makeExpressResponse<TLocals>(socket);
+            const res = this._makeExpressResponse(socket);
             return middleware(req, res);
         });
     }
@@ -116,9 +118,8 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
         return req;
     }
 
-    private _makeExpressResponse<TLocals>(socket: MySocket<TContext, TLocals>) : Response<any, TLocals>
+    private _makeExpressResponse(socket: MySocket<TContext, TLocals>) : Response<any, TLocals>
     {
-        socket.customData!.locals
         const res : Response<any, TLocals> = <Response<any, TLocals>>{
             locals: socket.customData!.locals
         };
