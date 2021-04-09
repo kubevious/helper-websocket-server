@@ -9,6 +9,7 @@ import { Request, Response, NextFunction } from 'express';
 import { UserMessages } from './types';
 
 import { makeKey } from './utils';
+import { Handshake } from 'socket.io/dist/socket'
 
 export type WebSocketTarget = any;// Record<string, any>;
 export type WebSocketMiddleware<TContext extends {} = WebSocketTarget, TLocals extends {} = WebSocketTarget> = (socket: MySocket<TContext, TLocals>, customData: MySocketCustomData<TContext, TLocals>) => Resolvable<void>;
@@ -182,7 +183,6 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
 
     private _initMiddleware(socket: SocketIO.Socket, next: (err?: any) => void) : void
     {
-        const xx : object = {};
         const mySocket = <MySocket<TContext, TLocals>>socket;
         (<any>mySocket).customData = {
             context: {},
@@ -554,6 +554,7 @@ export interface MySocket<TContext extends {} = WebSocketTarget, TLocals extends
     id: string;
     
     request: IncomingMessage,
+    handshake: Handshake,
     customData? : MySocketCustomData<TContext, TLocals>;
 
     emit(ev: string, ...args: any[]): boolean;
@@ -633,7 +634,7 @@ class SocketRequestWrapper<TContext, TLocals>
     }
 
     get query() {
-        return this._socket.customData!.context;
+        return this._socket.handshake.query
     }
 
     set user(value: any) {
