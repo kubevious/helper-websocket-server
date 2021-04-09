@@ -82,7 +82,7 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
 
     useExpressCallback(middleware: ServerMiddlewareCallbackFunc<TLocals>)
     {
-        this.use((socket, customData) => {
+        this.use((socket) => {
             const req = this._makeExpressRequest(socket);
             const res = this._makeExpressResponse(socket);
 
@@ -114,7 +114,8 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
 
     private _makeExpressRequest(socket: MySocket<TContext, TLocals>) : Request
     {
-        const req : Request = <Request>socket.request;
+        const reqWrapper = new SocketRequestWrapper(socket);
+        const req : Request = <Request>(<any>reqWrapper);
         return req;
     }
 
@@ -605,4 +606,40 @@ interface SubscriptionTx<TContext extends {} = WebSocketTarget, TLocals extends 
     localTarget?: WebSocketTarget,
     globalId?: string,
     globalTarget?: WebSocketTarget
+}
+
+
+class SocketRequestWrapper<TContext, TLocals>
+{
+    private _socket: MySocket<TContext, TLocals>;
+    private _request: IncomingMessage;
+
+    constructor(socket: MySocket<TContext, TLocals>)
+    {
+        this._socket = socket;
+        this._request = socket.request;
+    }
+
+    get method() {
+        return 'GET';
+    }
+
+    get headers() {
+        return this._request.headers;
+    }
+
+    get user() {
+        return (<any>this._request).user;
+    }
+
+    get query() {
+        return this._socket.customData!.context;
+    }
+
+    set user(value: any) {
+        (<any>this._request).user = value;
+    }
+
+
+    
 }
