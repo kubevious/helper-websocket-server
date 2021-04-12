@@ -15,7 +15,7 @@ export type WebSocketTarget = any;// Record<string, any>;
 export type WebSocketMiddleware<TContext extends {} = WebSocketTarget, TLocals extends {} = WebSocketTarget> = (socket: MySocket<TContext, TLocals>, customData: MySocketCustomData<TContext, TLocals>) => Resolvable<void>;
 
 export type SubscriptionMetaFetcherCb<TContext extends {} = WebSocketTarget, TLocals extends {} = WebSocketTarget, TSubMeta extends {} = {}> = (target: WebSocketTarget, socket: MySocket<TContext, TLocals>) => SubscriptionMeta<TSubMeta>;
-export type SubscriptionHandler<TContext extends {} = WebSocketTarget, TLocals extends {} = WebSocketTarget, TSubMeta extends {} = {}> = (present: boolean, target: WebSocketTarget, socket: MySocket<TContext, TLocals>, meta: SubscriptionMeta<TSubMeta>) => any;
+export type SubscriptionHandler<TSubMeta extends {} = {}> = (present: boolean, target: WebSocketTarget, meta: SubscriptionMeta<TSubMeta>) => any;
 export type SocketHandler<TContext extends {} = WebSocketTarget, TLocals extends {} = WebSocketTarget, TSubMeta extends {} = {}> = (globalTarget: WebSocketTarget, socket: MySocket<TContext, TLocals>, globalId: string, localTarget: WebSocketTarget, meta: SubscriptionMeta<TSubMeta>) => any;
 
 export type ServerMiddlewareCallbackFunc<TLocals = any> = (req: Request, res: Response<any, TLocals>, next: NextFunction) => void;
@@ -27,7 +27,7 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
 
     private _subscriptions : Record<string, ServerSubscriptionInfo<TContext, TLocals>> = {};
     private _subscriptionMetaFetcherCb : SubscriptionMetaFetcherCb<TContext, TLocals, TSubMeta> | null = null;
-    private _subscriptionHandlers : SubscriptionHandler<TContext, TLocals, TSubMeta>[] = [];
+    private _subscriptionHandlers : SubscriptionHandler<TSubMeta>[] = [];
     private _socketHandlers : SocketHandler<TContext, TLocals, TSubMeta>[] = [];
 
     constructor(logger: ILogger, httpServer: Server, url?: string)
@@ -171,7 +171,7 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
         }
     }
 
-    handleSubscription(cb: SubscriptionHandler<TContext, TLocals, TSubMeta>)
+    handleSubscription(cb: SubscriptionHandler<TSubMeta>)
     {
         this._subscriptionHandlers.push(cb);
     }
