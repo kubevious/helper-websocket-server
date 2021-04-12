@@ -14,21 +14,21 @@ import { Handshake } from 'socket.io/dist/socket'
 export type WebSocketTarget = any;// Record<string, any>;
 export type WebSocketMiddleware<TContext extends {} = WebSocketTarget, TLocals extends {} = WebSocketTarget> = (socket: MySocket<TContext, TLocals>, customData: MySocketCustomData<TContext, TLocals>) => Resolvable<void>;
 
-export type SubscriptionMetaFetcherCb<TContext extends {} = WebSocketTarget, TLocals extends {} = WebSocketTarget> = (target: WebSocketTarget, socket: MySocket<TContext, TLocals>) => SubscriptionMeta;
-export type SubscriptionHandler<TContext extends {} = WebSocketTarget, TLocals extends {} = WebSocketTarget> = (present: boolean, target: WebSocketTarget, socket: MySocket<TContext, TLocals>) => any;
-export type SocketHandler<TContext extends {} = WebSocketTarget, TLocals extends {} = WebSocketTarget> = (globalTarget: WebSocketTarget, socket: MySocket<TContext, TLocals>, globalId: string, localTarget: WebSocketTarget) => any;
+export type SubscriptionMetaFetcherCb<TContext extends {} = WebSocketTarget, TLocals extends {} = WebSocketTarget, TSubMeta extends {} = {}> = (target: WebSocketTarget, socket: MySocket<TContext, TLocals>) => SubscriptionMeta<TSubMeta>;
+export type SubscriptionHandler<TContext extends {} = WebSocketTarget, TLocals extends {} = WebSocketTarget, TSubMeta extends {} = {}> = (present: boolean, target: WebSocketTarget, socket: MySocket<TContext, TLocals>, meta: SubscriptionMeta<TSubMeta>) => any;
+export type SocketHandler<TContext extends {} = WebSocketTarget, TLocals extends {} = WebSocketTarget, TSubMeta extends {} = {}> = (globalTarget: WebSocketTarget, socket: MySocket<TContext, TLocals>, globalId: string, localTarget: WebSocketTarget, meta: SubscriptionMeta<TSubMeta>) => any;
 
 export type ServerMiddlewareCallbackFunc<TLocals = any> = (req: Request, res: Response<any, TLocals>, next: NextFunction) => void;
 export type ServerMiddlewarePromiseFunc<TLocals = any> = (req: Request, res: Response<any, TLocals>) => Promise<any> | void;
-export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals extends {} = WebSocketTarget >
+export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals extends {} = WebSocketTarget, TSubMeta extends {} = {} >
 {
     private _logger : ILogger;
     private _io : SocketIO.Server;
 
     private _subscriptions : Record<string, ServerSubscriptionInfo<TContext, TLocals>> = {};
-    private _subscriptionMetaFetcherCb : SubscriptionMetaFetcherCb<TContext, TLocals> | null = null;
-    private _subscriptionHandlers : SubscriptionHandler<TContext, TLocals>[] = [];
-    private _socketHandlers : SocketHandler<TContext, TLocals>[] = [];
+    private _subscriptionMetaFetcherCb : SubscriptionMetaFetcherCb<TContext, TLocals, TSubMeta> | null = null;
+    private _subscriptionHandlers : SubscriptionHandler<TContext, TLocals, TSubMeta>[] = [];
+    private _socketHandlers : SocketHandler<TContext, TLocals, TSubMeta>[] = [];
 
     constructor(logger: ILogger, httpServer: Server, url?: string)
     {
@@ -56,7 +56,7 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
         });
     }
 
-    setupSubscriptionMetaFetcher(cb: SubscriptionMetaFetcherCb<TContext, TLocals>)
+    setupSubscriptionMetaFetcher(cb: SubscriptionMetaFetcherCb<TContext, TLocals, TSubMeta>)
     {
         this._subscriptionMetaFetcherCb = cb;
     }
@@ -171,12 +171,12 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
         }
     }
 
-    handleSubscription(cb: SubscriptionHandler<TContext, TLocals>)
+    handleSubscription(cb: SubscriptionHandler<TContext, TLocals, TSubMeta>)
     {
         this._subscriptionHandlers.push(cb);
     }
 
-    handleSocket(cb: SocketHandler<TContext, TLocals>)
+    handleSocket(cb: SocketHandler<TContext, TLocals, TSubMeta>)
     {
         this._socketHandlers.push(cb);
     }
@@ -238,6 +238,7 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
         let meta = this._fetchSubscriptionMeta(localTarget, socket);
 
         let socketSubscriptionInfo : SocketSubscriptionInfo = {
+            meta: meta,
             localId: localId,
             localTarget: localTarget,
             contextFields: meta.contextFields,
@@ -267,16 +268,18 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
             delete socket.customData.localIdDict[socketSubscription.localId];
             if (socketSubscription.globalId)
             {
-                let tx = this._newTransaction(socket);
+                let tx = this._newTransaction(socket, socketSubscription.meta);
                 this._processDeleteGlobalSubscription(tx, socketSubscription);
                 return this._completeTransaction(tx);
             }
         }
     }
 
-    private _handleGlobalSubscription(socket: MySocket<TContext, TLocals>, subscriptionInfo : SocketSubscriptionInfo) : SubscriptionTx<TContext, TLocals> | null
+    private _handleGlobalSubscription(
+        socket: MySocket<TContext, TLocals>,
+        subscriptionInfo : SocketSubscriptionInfo) : SubscriptionTx<TContext, TLocals> | null
     {
-        let tx = this._newTransaction(socket);
+        let tx = this._newTransaction(socket, subscriptionInfo.meta);
 
         let newGlobalTarget = this._makeGlobalTarget(subscriptionInfo, socket);
         if (!newGlobalTarget) 
@@ -318,7 +321,9 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
         return tx;
     }
 
-    private _processCreateGlobalSubscription(tx: SubscriptionTx<TContext, TLocals>, socketSubscription : SocketSubscriptionInfo)
+    private _processCreateGlobalSubscription(
+        tx: SubscriptionTx<TContext, TLocals>,
+        socketSubscription : SocketSubscriptionInfo)
     {
         const socket = tx.socket;
         const customData = socket.customData!;
@@ -366,9 +371,10 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
         socketSubscription.globalTarget = undefined;
     }
 
-    private _newTransaction(socket: MySocket<TContext, TLocals>) : SubscriptionTx<TContext, TLocals>
+    private _newTransaction(socket: MySocket<TContext, TLocals>, meta: SubscriptionMeta) : SubscriptionTx<TContext, TLocals>
     {
         return {
+            meta: meta,
             socket: socket,
             wasCreated: false,
             wasDeleted: false
@@ -382,21 +388,21 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
                 if (tx.wasDeleted)
                 {
                     return this._trigger(this._subscriptionHandlers, 
-                        [false, tx.deletedGlobalTarget!],
+                        [false, tx.deletedGlobalTarget!, tx.meta],
                         'delete-subscription-handlers');
                 }
             })
             .then(() => {
                 if (tx.wasCreated) {
                     return this._trigger(this._subscriptionHandlers, 
-                        [true, tx.globalTarget!],
+                        [true, tx.globalTarget!, tx.meta],
                         'create-subscription-handlers');
                 }
             })
             .then(() => {
                 if (tx.globalId) {
                     return this._trigger(this._socketHandlers, 
-                        [tx.globalTarget!, tx.socket, tx.globalId!, tx.localTarget!],
+                        [tx.globalTarget!, tx.socket, tx.globalId!, tx.localTarget!, tx.meta],
                         'socket-handlers');
                 }
             })
@@ -499,7 +505,7 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
         {
             if (socketSubscription.globalId)
             {
-                let tx = this._newTransaction(socket);
+                let tx = this._newTransaction(socket, socketSubscription.meta);
                 this._processDeleteGlobalSubscription(tx, socketSubscription);
                 txList.push(tx);
             }
@@ -570,6 +576,8 @@ export interface MySocketCustomData<TContext extends {} = WebSocketTarget, TLoca
 
 export interface SocketSubscriptionInfo
 {
+    meta: SubscriptionMeta,
+
     localId: string,
     localTarget: WebSocketTarget,
     
@@ -587,17 +595,16 @@ export interface ServerSubscriptionInfo<TContext extends {} = WebSocketTarget, T
     sockets: Record<string, MySocket<TContext, TLocals>>
 }
 
-export interface SubscriptionMeta
-{
-    contextFields?: string[],
-    targetExtras?: WebSocketTarget
-}
+export type SubscriptionMeta<TSubMeta extends {} = {}> = Partial<TSubMeta & {
+    contextFields: string[],
+    targetExtras: WebSocketTarget
+}>
 
 
 interface SubscriptionTx<TContext extends {} = WebSocketTarget, TLocals extends {} = WebSocketTarget>
 {
+    meta: SubscriptionMeta,
     socket: MySocket<TContext, TLocals>,
-    // socketSubscription : SocketSubscriptionInfo,
 
     wasDeleted: boolean,
     deletedGlobalId?: string,

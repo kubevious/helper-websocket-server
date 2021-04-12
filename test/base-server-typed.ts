@@ -78,14 +78,15 @@ describe('base-server-typed', () => {
 
 
     it('middleware-01', () => {
-        const wsServer = new WebSocketBaseServer<MyContext, MyLocals>(logger, globalHttp!, '/socket');
+        const wsServer = new WebSocketBaseServer<MyContext, MyLocals, MySubMeta>(logger, globalHttp!, '/socket');
 
         wsServer.setupSubscriptionMetaFetcher((target, socket) => {
             return {
                 contextFields: ['foo', 'bar'],
                 targetExtras: {
                     projectId: 'foo-bar'
-                }
+                },
+                redisName: 'redis-1234'
             };
         })
 
@@ -116,4 +117,9 @@ interface MyContext
 interface MyLocals
 {
     projectId: string
+}
+
+interface MySubMeta
+{
+    redisName: string
 }
