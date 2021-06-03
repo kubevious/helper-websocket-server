@@ -39,6 +39,8 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
         });
 
         this._io.use(this._initMiddleware.bind(this));
+
+        this.useP("initAuth", this._initAuth.bind(this));
     }
 
     get logger() {
@@ -204,6 +206,14 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
             globalIdDict: {},
         };
         next();
+    }
+
+    private _initAuth(req: Request, res: Response)
+    {
+        const auth = req.query['Authorization'];
+        if (_.isString(auth)) {
+            req.headers['authorization'] = auth;
+        }
     }
 
     private _handleConnection(socket: MySocket<TContext, TLocals>)
