@@ -33,9 +33,9 @@ export class WebSocketServer
         return this._baseServer.run();
     }
 
-    use(middleware: WebSocketMiddleware)
+    use(name: string, middleware: WebSocketMiddleware)
     {
-        this._baseServer.use(middleware);
+        this._baseServer.use(name, middleware);
     }
 
     update(target: WebSocketTarget, value: any)

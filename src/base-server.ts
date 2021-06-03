@@ -47,11 +47,11 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
 
     run()
     {
-        this.logger.info("[run]");
+        this._logger.info("[run]");
 
         this._io.on('connection', (socket) => {
             this._runPromise('connection', () => {
-                return this._newConnection(socket);
+                return this._handleConnection(socket);
             })
         });
     }
@@ -61,7 +61,7 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
         this._subscriptionMetaFetcherCb = cb;
     }
 
-    use(middleware: WebSocketMiddleware<TContext, TLocals>)
+    use(name: string, middleware: WebSocketMiddleware<TContext, TLocals>)
     {
         return this._io.use((socket, next) => {
 
@@ -73,7 +73,7 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
                     return null;
                 })
                 .catch(reason => {
-                    this.logger.warn('[use] ', reason);
+                    this._handleMiddlewareError('use', name, reason);
                     next(reason);
                     return null;
                 })
@@ -81,9 +81,9 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
         });
     }
 
-    useExpressCallback(middleware: ServerMiddlewareCallbackFunc<TLocals>)
+    useExpressCallback(name: string, middleware: ServerMiddlewareCallbackFunc<TLocals>)
     {
-        this.use((socket) => {
+        this.use(name, (socket) => {
             const req = this._makeExpressRequest(socket);
             const res = this._makeExpressResponse(socket);
 
@@ -93,7 +93,7 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
                     res,
                     (error: any) => {
                         if (error) {
-                            this.logger.warn('[useExpressCallback] ', error);
+                            this._handleMiddlewareError('useExpressCallback', name, error);
                             reject(error)
                         } else {
                             resolve();
@@ -104,13 +104,26 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
         });
     }
 
-    useP(middleware: ServerMiddlewarePromiseFunc<TLocals>)
+    useP(name: string, middleware: ServerMiddlewarePromiseFunc<TLocals>)
     {
-        this.use((socket) => {
+        this.use(name, (socket) => {
             const req = this._makeExpressRequest(socket);
             const res = this._makeExpressResponse(socket);
             return middleware(req, res);
         });
+    }
+
+    private _handleMiddlewareError(kind: string, name: string, error: any)
+    {
+        if (error) {
+            const code = error.status || error.statusCode || error.code;
+            if (code) {
+                this._logger.warn('[%s] [%s] code: %s. error: ', kind, name, code, error.message);
+                return;
+            }
+        }
+        
+        this._logger.warn('[%s] [%s]', kind, name, error);
     }
 
     private _makeExpressRequest(socket: MySocket<TContext, TLocals>) : Request
@@ -130,7 +143,7 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
 
     notifySocket(socket: MySocket<TContext, TLocals>, localTarget: WebSocketTarget, value: any)
     {
-        this._logger.verbose('[notifySocket] socket: %s, localTarget: ', socket.id, localTarget);
+        this._logger.debug('[notifySocket] socket: %s, localTarget: ', socket.id, localTarget);
         this._logger.silly('[notifySocket] socket: %s, localTarget && value: ', socket.id, localTarget, value);
 
         if (!socket.customData) {
@@ -149,7 +162,7 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
 
     notifyAll(globalTarget: WebSocketTarget, value: any)
     {
-        this._logger.verbose('[notifyAll] globalTarget && value: ', globalTarget, value);
+        this._logger.debug('[notifyAll] globalTarget && value: ', globalTarget, value);
 
         let globalId = makeKey(globalTarget);
         let subscriptionInfo = this._subscriptions[globalId];
@@ -193,9 +206,9 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
         next();
     }
 
-    private _newConnection(socket: MySocket<TContext, TLocals>)
+    private _handleConnection(socket: MySocket<TContext, TLocals>)
     {
-        this._logger.debug('[_newConnection] id: %s', socket.id);
+        this._logger.verbose('[_handleConnection] id: %s', socket.id);
 
         if (!socket.customData) {
             return;
@@ -477,7 +490,7 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
 
     private _handleDisconnect(socket: MySocket<TContext, TLocals>)
     {
-        this._logger.debug('[_handleDisconnect] id: %s', socket.id);
+        this._logger.verbose('[_handleDisconnect] id: %s', socket.id);
 
         return Promise.resolve()
             .then(() => this._removeAllSubscriptions(socket))

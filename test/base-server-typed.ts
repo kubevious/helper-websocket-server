@@ -90,11 +90,11 @@ describe('base-server-typed', () => {
             };
         })
 
-        wsServer.use((socket, customData) => {
+        wsServer.use('something', (socket, customData) => {
             return Promise.resolve();
         });
 
-        wsServer.useP((req, res) => {
+        wsServer.useP('update-locals', (req, res) => {
             res.locals.projectId = 'proj-abc'
         })
 

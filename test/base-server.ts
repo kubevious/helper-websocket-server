@@ -89,7 +89,7 @@ describe('base-server', () => {
             };
         })
 
-        wsServer.use((socket, customData) => {
+        wsServer.use("do-nothing", (socket, customData) => {
             return Promise.resolve();
         });
 

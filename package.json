@@ -17,11 +17,11 @@
   "author": "Ruben Hakopian <ruben.hakopian@gmail.com>",
   "license": "Propriatery",
   "dependencies": {
+    "express": "^4.17.1",
     "socket.io": "^4.0.1",
     "the-lodash": "^2.0.9",
     "the-logger": "^2.0.9",
-    "the-promise": "^2.0.12",
-    "express": "^4.17.1"
+    "the-promise": "^2.0.13"
   },
   "devDependencies": {
     "@types/express": "^4.17.11",
