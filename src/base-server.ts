@@ -118,7 +118,7 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
         if (error) {
             const code = error.status || error.statusCode || error.code;
             if (code) {
-                this._logger.warn('[%s] [%s] code: %s. error: ', kind, name, code, error.message);
+                this._logger.warn('[%s] [%s] code: %s. error: %s', kind, name, code, error.message);
                 return;
             }
         }
