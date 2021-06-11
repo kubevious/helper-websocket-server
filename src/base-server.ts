@@ -148,12 +148,13 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
         this._logger.debug('[notifySocket] socket: %s, localTarget: ', socket.id, localTarget);
         this._logger.silly('[notifySocket] socket: %s, localTarget && value: ', socket.id, localTarget, value);
 
-        if (!socket.customData) {
+        const customData = socket.customData;
+        if (!customData) {
             return;
         }
 
         let localId = makeKey(localTarget);
-        let socketSubscription = socket.customData.localIdDict[localId];
+        let socketSubscription = customData.localIdDict[localId];
         if (!socketSubscription)
         {
             return;
@@ -173,11 +174,13 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
             return;
         }
 
+
         for(let socket of _.values(subscriptionInfo.sockets))
         {
-            if (socket.customData)
+            const customData = socket.customData;
+            if (customData)
             {
-                let socketSubscriptionInfo = socket.customData.globalIdDict[globalId];
+                let socketSubscriptionInfo = customData.globalIdDict[globalId];
                 if (socketSubscriptionInfo)
                 {
                     this._notify(socket, socketSubscriptionInfo.localTarget, value);
@@ -251,7 +254,8 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
 
     private _handleSubscribe(socket: MySocket<TContext, TLocals>, localTarget: WebSocketTarget)
     {
-        if (!socket.customData) {
+        const customData = socket.customData;
+        if (!customData) {
             return;
         }
 
@@ -267,7 +271,7 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
             contextFields: meta.contextFields,
             targetExtras: meta.targetExtras
         };
-        socket.customData.localIdDict[localId] = socketSubscriptionInfo;
+        customData.localIdDict[localId] = socketSubscriptionInfo;
 
         const tx = this._handleGlobalSubscription(socket, socketSubscriptionInfo);
         if (tx) {
@@ -277,7 +281,8 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
 
     private _handleUnsubscribe(socket: MySocket<TContext, TLocals>, localTarget: WebSocketTarget)
     {
-        if (!socket.customData) {
+        const customData = socket.customData;
+        if (!customData) {
             return;
         }
 
@@ -285,10 +290,10 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
 
         this._logger.debug('[_handleUnsubscribe] id: %s, localTarget: ', socket.id, localTarget);
 
-        let socketSubscription = socket.customData.localIdDict[localId];
+        let socketSubscription = customData.localIdDict[localId];
         if (socketSubscription)
         {
-            delete socket.customData.localIdDict[socketSubscription.localId];
+            delete customData.localIdDict[socketSubscription.localId];
             if (socketSubscription.globalId)
             {
                 let tx = this._newTransaction(socket, socketSubscription.meta);
@@ -426,7 +431,8 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
                 if (tx.globalId) {
                     return this._trigger(this._socketHandlers, 
                         [tx.globalTarget!, tx.socket, tx.globalId!, tx.localTarget!, tx.meta],
-                        'socket-handlers');
+                        'socket-handlers',
+                        () => _.isNotNullOrUndefined(tx.socket));
                 }
             })
     }
@@ -434,13 +440,13 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
 
     private _setupContext(socket: MySocket<TContext, TLocals>, context: WebSocketTarget)
     {
-        if (!socket.customData) {
+        const customData = socket.customData;
+        if (!customData) {
             return;
         }
 
         this._logger.debug('[_setupContext] id: %s, context: ', socket.id, context);
 
-        const customData = socket.customData;
 
         if (context) {
             customData.context = context;
@@ -516,7 +522,9 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
         if (!socket) {
             return;
         }
-        if (!socket.customData) {
+
+        const customData = socket.customData;
+        if (!customData) {
             return;
         }
 
@@ -524,7 +532,7 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
 
         const txList : SubscriptionTx<TContext, TLocals>[] = []
 
-        for(let socketSubscription of _.values(socket.customData.localIdDict))
+        for(let socketSubscription of _.values(customData.localIdDict))
         {
             if (socketSubscription.globalId)
             {
@@ -534,8 +542,8 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
             }
         }
 
-        socket.customData.localIdDict = {};
-        socket.customData.globalIdDict = {};
+        customData.localIdDict = {};
+        customData.globalIdDict = {};
 
         return Promise.serial(txList, tx => {
             return this._completeTransaction(tx);
@@ -550,9 +558,14 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
         })
     }
  
-    private _trigger(cbList: ((...args : any) => any)[], params: any[], name: string) : Promise<any>
+    private _trigger(cbList: ((...args : any) => any)[], params: any[], name: string, checkProceed?: () => boolean) : Promise<any>
     {
         return Promise.serial(cbList, x => {
+            if (checkProceed) {
+                if (!checkProceed()) {
+                    return;
+                }
+            }
             return x.apply(null, params);
         })
         .catch(reason => {
