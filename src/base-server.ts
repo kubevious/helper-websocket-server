@@ -153,8 +153,8 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
             return;
         }
 
-        let localId = makeKey(localTarget);
-        let socketSubscription = customData.localIdDict[localId];
+        const localId = makeKey(localTarget);
+        const socketSubscription = customData.localIdDict[localId];
         if (!socketSubscription)
         {
             return;
@@ -167,20 +167,20 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
     {
         this._logger.debug('[notifyAll] globalTarget && value: ', globalTarget, value);
 
-        let globalId = makeKey(globalTarget);
-        let subscriptionInfo = this._subscriptions[globalId];
+        const globalId = makeKey(globalTarget);
+        const subscriptionInfo = this._subscriptions[globalId];
         if (!subscriptionInfo)
         {
             return;
         }
 
 
-        for(let socket of _.values(subscriptionInfo.sockets))
+        for(const socket of _.values(subscriptionInfo.sockets))
         {
             const customData = socket.customData;
             if (customData)
             {
-                let socketSubscriptionInfo = customData.globalIdDict[globalId];
+                const socketSubscriptionInfo = customData.globalIdDict[globalId];
                 if (socketSubscriptionInfo)
                 {
                     this._notify(socket, socketSubscriptionInfo.localTarget, value);
@@ -259,12 +259,12 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
             return;
         }
 
-        let localId = makeKey(localTarget);
+        const localId = makeKey(localTarget);
         this._logger.debug('[_handleSubscribe] id: %s, localTarget: ', socket.id, localTarget);
 
-        let meta = this._fetchSubscriptionMeta(localTarget, socket);
+        const meta = this._fetchSubscriptionMeta(localTarget, socket);
 
-        let socketSubscriptionInfo : SocketSubscriptionInfo = {
+        const socketSubscriptionInfo : SocketSubscriptionInfo = {
             meta: meta,
             localId: localId,
             localTarget: localTarget,
@@ -290,13 +290,13 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
 
         this._logger.debug('[_handleUnsubscribe] id: %s, localTarget: ', socket.id, localTarget);
 
-        let socketSubscription = customData.localIdDict[localId];
+        const socketSubscription = customData.localIdDict[localId];
         if (socketSubscription)
         {
             delete customData.localIdDict[socketSubscription.localId];
             if (socketSubscription.globalId)
             {
-                let tx = this._newTransaction(socket, socketSubscription.meta);
+                const tx = this._newTransaction(socket, socketSubscription.meta);
                 this._processDeleteGlobalSubscription(tx, socketSubscription);
                 return this._completeTransaction(tx);
             }
@@ -307,9 +307,9 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
         socket: MySocket<TContext, TLocals>,
         subscriptionInfo : SocketSubscriptionInfo) : SubscriptionTx<TContext, TLocals> | null
     {
-        let tx = this._newTransaction(socket, subscriptionInfo.meta);
+        const tx = this._newTransaction(socket, subscriptionInfo.meta);
 
-        let newGlobalTarget = this._makeGlobalTarget(subscriptionInfo, socket);
+        const newGlobalTarget = this._makeGlobalTarget(subscriptionInfo, socket);
         if (!newGlobalTarget) 
         {
             this._logger.debug('[_handleGlobalSubscription] socket: %s, NO newGlobalTarget: ', socket.id);
@@ -327,7 +327,7 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
         {
             this._logger.debug('[_handleGlobalSubscription] socket: %s, newGlobalTarget: ', socket.id, newGlobalTarget);
 
-            let globalId = makeKey(newGlobalTarget);
+            const globalId = makeKey(newGlobalTarget);
 
             if (subscriptionInfo.globalId)
             {
@@ -385,7 +385,7 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
 
         const globalId = socketSubscription.globalId!;
 
-        let globalSubscriptionInfo = this._subscriptions[globalId];
+        const globalSubscriptionInfo = this._subscriptions[globalId];
         if (globalSubscriptionInfo) {
             delete globalSubscriptionInfo.sockets[socket.id];
             if (_.keys(globalSubscriptionInfo.sockets).length == 0) {
@@ -456,9 +456,9 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
 
         const txList : SubscriptionTx<TContext, TLocals>[] = []
 
-        for(let socketSubscription of _.values(customData.localIdDict))
+        for(const socketSubscription of _.values(customData.localIdDict))
         {
-            let tx = this._handleGlobalSubscription(socket, socketSubscription);
+            const tx = this._handleGlobalSubscription(socket, socketSubscription);
             if (tx) {
                 txList.push(tx);
             }
@@ -478,7 +478,7 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
         }
         if (subscription.contextFields)
         {
-            for(let field of subscription.contextFields)
+            for(const field of subscription.contextFields)
             {
                 const customData = socket.customData!;
                 const fieldValue = (<any>customData.context)[field];
@@ -532,11 +532,11 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
 
         const txList : SubscriptionTx<TContext, TLocals>[] = []
 
-        for(let socketSubscription of _.values(customData.localIdDict))
+        for(const socketSubscription of _.values(customData.localIdDict))
         {
             if (socketSubscription.globalId)
             {
-                let tx = this._newTransaction(socket, socketSubscription.meta);
+                const tx = this._newTransaction(socket, socketSubscription.meta);
                 this._processDeleteGlobalSubscription(tx, socketSubscription);
                 txList.push(tx);
             }
@@ -676,14 +676,12 @@ class SocketRequestWrapper<TContext, TLocals>
         return (<any>this._request).user;
     }
 
-    get query() {
-        return this._socket.handshake.query
-    }
-
     set user(value: any) {
         (<any>this._request).user = value;
     }
 
+    get query() {
+        return this._socket.handshake.query
+    }
 
-    
 }

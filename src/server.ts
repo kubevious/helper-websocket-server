@@ -54,7 +54,7 @@ export class WebSocketServer
                 isChanged = true;
             }
         } else {
-            let hash = HashUtils.calculateObjectHashStr(value);
+            const hash = HashUtils.calculateObjectHashStr(value);
             if (this._values[id]) {
                 if (this._values[id].hash != hash) {
                     isChanged = true;
@@ -80,23 +80,23 @@ export class WebSocketServer
 
     updateScope(scope: WebSocketTarget, newItems: WebSocketItem[])
     {
-        let newItemsDict : Record<string, WebSocketItem> = {};
-        for(let newItem of newItems)
+        const newItemsDict : Record<string, WebSocketItem> = {};
+        for(const newItem of newItems)
         {
-            let target = _.clone(newItem.target);
+            const target = _.clone(newItem.target);
             _.defaults(target, scope)
-            let id = makeKey(target);
+            const id = makeKey(target);
             newItemsDict[id] = {
                 target: target,
                 value: newItem.value
             };
         }
 
-        let currentItems = this._scopeItems(scope);
+        const currentItems = this._scopeItems(scope);
 
-        let diff = [];
+        const diff = [];
 
-        for(let id of _.keys(currentItems))
+        for(const id of _.keys(currentItems))
         {
             if (!newItemsDict[id]) {
                 diff.push({
@@ -106,7 +106,7 @@ export class WebSocketServer
             }
         }
 
-        for(let id of _.keys(newItemsDict))
+        for(const id of _.keys(newItemsDict))
         {
             diff.push({
                 target: newItemsDict[id].target,
@@ -114,7 +114,7 @@ export class WebSocketServer
             });
         }
 
-        for(let delta of diff)
+        for(const delta of diff)
         {
             this.update(delta.target, delta.value);
         }
@@ -123,7 +123,7 @@ export class WebSocketServer
     private _handleSocket(globalTarget: WebSocketTarget, socket: MySocket, globalId: string, localTarget: WebSocketTarget)
     {
         this._logger.verbose('[_handleSocket] globalId: %s, globalTarget:', globalId, globalTarget);
-        let valueInfo = this._values[globalId];
+        const valueInfo = this._values[globalId];
 
         let value = null;
         if (valueInfo) {
@@ -135,10 +135,10 @@ export class WebSocketServer
 
     private _scopeItems(scope: WebSocketTarget) : Record<string, TargetInfo>
     {
-        let result : Record<string, TargetInfo> = {};
-        for(let id of _.keys(this._values))
+        const result : Record<string, TargetInfo> = {};
+        for(const id of _.keys(this._values))
         {
-            let valueInfo = this._values[id];
+            const valueInfo = this._values[id];
             if (this._matchesScope(scope, valueInfo.target))
             {
                 result[id] = valueInfo;
@@ -149,7 +149,7 @@ export class WebSocketServer
 
     private _matchesScope(scope: WebSocketTarget, target: WebSocketTarget) : boolean
     {
-        for(let id of _.keys(scope))
+        for(const id of _.keys(scope))
         {
             if (scope[id] !== target[id]) {
                 return false;
