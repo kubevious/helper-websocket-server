@@ -199,6 +199,11 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
         this._socketHandlers.push(cb);
     }
 
+    extractAllTargets()
+    {
+        return _.values(this._subscriptions).map(x => x.globalTarget);
+    }
+
     private _initMiddleware(socket: SocketIO.Socket, next: (err?: any) => void) : void
     {
         const mySocket = <MySocket<TContext, TLocals>>socket;
