@@ -1,6 +1,6 @@
 import 'mocha';
-import should = require('should');
-import { Promise } from 'the-promise';
+import should from 'should';
+import { MyPromise } from 'the-promise';
 
 import { WebSocketServer } from '../src';
 
@@ -28,7 +28,7 @@ describe('main-server', () => {
     beforeEach(() => {
         logger.info("[beforeEach]");
 
-        return Promise.construct((resolve, reject) => {
+        return MyPromise.construct((resolve, reject) => {
             globalHttp = globalApp.listen(PORT, () => {
                 logger.info("Listening on %s", PORT);
                 resolve();
@@ -47,11 +47,11 @@ describe('main-server', () => {
         const wsServer = new WebSocketServer(logger, globalHttp!, '/socket');
         return Promise.resolve()
             .then(() => wsServer.run())
-            .then(() => Promise.timeout(1 * 1000))
+            .then(() => MyPromise.delay(1 * 1000))
             .then(() => {
                 return wsServer.update({ kind: 'messages' }, ['foo', 'bar']);
             })
-            .then(() => Promise.timeout(PAUSE_TIMEOUT))
+            .then(() => MyPromise.delay(PAUSE_TIMEOUT))
             .then(() => {
             })
     })

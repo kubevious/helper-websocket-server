@@ -1,5 +1,5 @@
 import _ from 'the-lodash'
-import { Promise, Resolvable } from 'the-promise'
+import { MyPromise, Resolvable } from 'the-promise'
 import { ILogger } from 'the-logger'
 
 import { Server, IncomingMessage } from 'http'
@@ -18,8 +18,8 @@ export type SubscriptionMetaFetcherCb<TContext extends {} = WebSocketTarget, TLo
 export type SubscriptionHandler<TSubMeta extends {} = {}> = (present: boolean, target: WebSocketTarget, meta: SubscriptionMeta<TSubMeta>) => any;
 export type SocketHandler<TContext extends {} = WebSocketTarget, TLocals extends {} = WebSocketTarget, TSubMeta extends {} = {}> = (globalTarget: WebSocketTarget, socket: MySocket<TContext, TLocals>, globalId: string, localTarget: WebSocketTarget, meta: SubscriptionMeta<TSubMeta>) => any;
 
-export type ServerMiddlewareCallbackFunc<TLocals = any> = (req: Request, res: Response<any, TLocals>, next: NextFunction) => void;
-export type ServerMiddlewarePromiseFunc<TLocals = any> = (req: Request, res: Response<any, TLocals>) => Promise<any> | void;
+export type ServerMiddlewareCallbackFunc<TLocals extends Record<string, any> = Record<string, any>> = (req: Request, res: Response<any, TLocals>, next: NextFunction) => void;
+export type ServerMiddlewarePromiseFunc<TLocals extends Record<string, any> = Record<string, any>> = (req: Request, res: Response<any, TLocals>) => Promise<any> | void;
 export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals extends {} = WebSocketTarget, TSubMeta extends {} = {} >
 {
     private _logger : ILogger;
@@ -69,7 +69,7 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
 
             const mySocket = <MySocket<TContext, TLocals>> socket;
 
-            Promise.try(() => middleware(socket, mySocket.customData!))
+            MyPromise.try(() => middleware(socket, mySocket.customData!))
                 .then(() => {
                     next()
                     return null;
@@ -89,7 +89,7 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
             const req = this._makeExpressRequest(socket);
             const res = this._makeExpressResponse(socket);
 
-            return Promise.construct((resolve, reject) => {
+            return MyPromise.construct((resolve, reject) => {
                 middleware(
                     req,
                     res,
@@ -469,7 +469,7 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
             }
         }
 
-        return Promise.serial(txList, tx => {
+        return MyPromise.serial(txList, tx => {
             return this._completeTransaction(tx);
         })
     } 
@@ -550,7 +550,7 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
         customData.localIdDict = {};
         customData.globalIdDict = {};
 
-        return Promise.serial(txList, tx => {
+        return MyPromise.serial(txList, tx => {
             return this._completeTransaction(tx);
         })
     }
@@ -565,7 +565,7 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
  
     private _trigger(cbList: ((...args : any) => any)[], params: any[], name: string, checkProceed?: () => boolean) : Promise<any>
     {
-        return Promise.serial(cbList, x => {
+        return MyPromise.serial(cbList, x => {
             if (checkProceed) {
                 if (!checkProceed()) {
                     return;
@@ -658,7 +658,7 @@ interface SubscriptionTx<TContext extends {} = WebSocketTarget, TLocals extends 
 }
 
 
-class SocketRequestWrapper<TContext, TLocals>
+class SocketRequestWrapper<TContext extends {} = WebSocketTarget, TLocals extends {} = WebSocketTarget>
 {
     private _socket: MySocket<TContext, TLocals>;
     private _request: IncomingMessage;
