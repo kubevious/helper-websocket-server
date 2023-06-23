@@ -692,6 +692,14 @@ class SocketRequestWrapper<TContext extends {} = WebSocketTarget, TLocals extend
         (<any>this._request).user = value;
     }
 
+    get auth() {
+        return (<any>this._request).auth;
+    }
+
+    set auth(value: any) {
+        (<any>this._request).auth = value;
+    }
+
     get query() {
         return this._socket.handshake.query
     }
