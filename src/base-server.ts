@@ -30,17 +30,12 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
     private _subscriptionHandlers : SubscriptionHandler<TSubMeta>[] = [];
     private _socketHandlers : SocketHandler<TContext, TLocals, TSubMeta>[] = [];
 
-    constructor(logger: ILogger, httpServer: Server, url?: string)
+    constructor(logger: ILogger, httpServer: Server, opts?: Partial<SocketIO.ServerOptions>)
     {
         this._logger = logger;
 
         const options: Partial<SocketIO.ServerOptions> = {
-            path: url,
-            // TODO: work on this in future:
-            // cors: {
-                // origin: "*"
-                // methods: ["GET", "POST"]
-            // }
+            ...opts
         };
         this.logger.info("[constructor] Socket io options: ", options);
 
@@ -60,7 +55,7 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
         this._logger.info("[run]");
 
         this._io.engine.on('connection', (rawSocket) => {
-            this._logger.info('[_handleConnection] RAW CONNECTION: %s', rawSocket.id);
+            this._logger.debug('[_handleConnection] RAW CONNECTION: %s', rawSocket.id);
         });
 
         this._io.on('connection', (socket) => {
@@ -238,7 +233,7 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
 
     private _handleConnection(socket: MySocket<TContext, TLocals>)
     {
-        this._logger.info('[_handleConnection] id: %s', socket.id);
+        this._logger.debug('[_handleConnection] id: %s', socket.id);
 
         if (!socket.customData) {
             return;

@@ -46,7 +46,10 @@ describe('base-server-typed', () => {
 
 
     it('case-01', () => {
-        const wsServer = new WebSocketBaseServer<MyContext, MyLocals>(logger, globalHttp!, '/socket');
+        const options = {
+            path: '/socket'
+        }
+        const wsServer = new WebSocketBaseServer<MyContext, MyLocals>(logger, globalHttp!, options);
         return Promise.resolve()
             .then(() => wsServer.run())
             .then(() => MyPromise.delay(PAUSE_TIMEOUT))
@@ -57,7 +60,10 @@ describe('base-server-typed', () => {
 
 
     it('case-02', () => {
-        const wsServer = new WebSocketBaseServer<MyContext, MyLocals>(logger, globalHttp!, '/socket');
+        const options = {
+            path: '/socket'
+        }
+        const wsServer = new WebSocketBaseServer<MyContext, MyLocals>(logger, globalHttp!, options);
 
         wsServer.setupSubscriptionMetaFetcher((target, socket) => {
             return {
@@ -78,7 +84,10 @@ describe('base-server-typed', () => {
 
 
     it('middleware-01', () => {
-        const wsServer = new WebSocketBaseServer<MyContext, MyLocals, MySubMeta>(logger, globalHttp!, '/socket');
+        const options = {
+            path: '/socket'
+        }
+        const wsServer = new WebSocketBaseServer<MyContext, MyLocals, MySubMeta>(logger, globalHttp!, options);
 
         wsServer.setupSubscriptionMetaFetcher((target, socket) => {
             return {

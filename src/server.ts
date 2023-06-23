@@ -18,7 +18,9 @@ export class WebSocketServer
     {
         this._logger = logger;
 
-        this._baseServer = new WebSocketBaseServer(logger, httpServer, url);
+        this._baseServer = new WebSocketBaseServer(logger, httpServer, {
+            path: url
+        });
         this._baseServer.handleSocket(this._handleSocket.bind(this));
     }
 
