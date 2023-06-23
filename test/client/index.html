@@ -11,13 +11,13 @@
     <button onClick="sendMsg()">Hit Me</button>
 
     
-    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js" integrity="sha384-c79GN5VsunZvi+Q/WObgk2in0CbZsHnjEqvFxC5DxHn9lTfNce2WW6h2pH6u/kF+" crossorigin="anonymous"></script>
+    <script src="https://cdn.socket.io/4.7.0/socket.io.min.js" crossorigin="anonymous"></script>
 
     <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/3.1.1/socket.io.js"></script> -->
     <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.2.0/socket.io.js"></script> -->
     <script>
-      const socket = io({ path: '/socket'});
-
+      const socket = io({ path: '/socket', transport: ['websocket'] });
+      // TODO: http://localhost:3333/socket is not working
       // client-side
       socket.on("connect", () => {
         console.log('CONNECT', socket.id); 

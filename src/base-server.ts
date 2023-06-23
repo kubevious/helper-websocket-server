@@ -34,9 +34,17 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
     {
         this._logger = logger;
 
-        this._io = new SocketIO.Server(httpServer, {
-            path: url
-        });
+        const options: Partial<SocketIO.ServerOptions> = {
+            path: url,
+            // TODO: work on this in future:
+            // cors: {
+                // origin: "*"
+                // methods: ["GET", "POST"]
+            // }
+        };
+        this.logger.info("[constructor] Socket io options: ", options);
+
+        this._io = new SocketIO.Server(httpServer, options);
 
         this._io.use(this._initMiddleware.bind(this));
 
@@ -50,6 +58,10 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
     run()
     {
         this._logger.info("[run]");
+
+        this._io.engine.on('connection', (rawSocket) => {
+            this._logger.info('[_handleConnection] RAW CONNECTION: %s', rawSocket.id);
+        });
 
         this._io.on('connection', (socket) => {
             this._runPromise('connection', () => {
@@ -226,7 +238,7 @@ export class WebSocketBaseServer<TContext extends {} = WebSocketTarget, TLocals 
 
     private _handleConnection(socket: MySocket<TContext, TLocals>)
     {
-        this._logger.verbose('[_handleConnection] id: %s', socket.id);
+        this._logger.info('[_handleConnection] id: %s', socket.id);
 
         if (!socket.customData) {
             return;

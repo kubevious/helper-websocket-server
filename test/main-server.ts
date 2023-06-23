@@ -14,7 +14,7 @@ const RUN_TEST_DEBUG = (process.env.RUN_TEST_DEBUG == 'true');
 const PAUSE_TIMEOUT = RUN_TEST_DEBUG ? 100 * 1000 : 0;
 const TEST_TIMEOUT = PAUSE_TIMEOUT + 2000;
 
-const PORT = process.env.PORT || 3333;
+const PORT = process.env.PORT ? parseInt(process.env.PORT ) : 3333;
 let globalApp = express();
 
 let globalHttp : Server | null;
