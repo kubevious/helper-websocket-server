@@ -1,0 +1,3 @@
+kind: service
+name: helper-websocket-server
+description: helper-websocket-server
